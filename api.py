@@ -30,7 +30,7 @@ from typing import Optional
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import PlainTextResponse, Response, JSONResponse
+from fastapi.responses import PlainTextResponse, Response, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, field_validator
 
@@ -1348,3 +1348,18 @@ async def patch_invoice(id: str, payload: InvoicePatch, request: Request):
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         db.close()
+
+
+# Serve the built React app (frontend/dist) for every non-API route, so the
+# SPA's client-side router (React Router) handles the path. Mounted last so
+# it never shadows the /api/* routes or /branding static files above.
+FRONTEND_DIST = Path(__file__).parent / "frontend" / "dist"
+if FRONTEND_DIST.exists():
+    app.mount("/assets", StaticFiles(directory=str(FRONTEND_DIST / "assets")), name="frontend-assets")
+
+    @app.get("/{full_path:path}")
+    async def serve_frontend(full_path: str):
+        candidate = FRONTEND_DIST / full_path
+        if full_path and candidate.is_file():
+            return FileResponse(candidate)
+        return FileResponse(FRONTEND_DIST / "index.html")
