@@ -25,7 +25,7 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 JWT_SECRET = os.getenv("JWT_SECRET", "pixous-super-secret-key-12345")
 
 # ─── Database Settings ────────────────────────────────────────────────────────
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///pixous.db")
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///pixous.db").strip()
 
 
 # ─── Model Configuration ─────────────────────────────────────────────────────
