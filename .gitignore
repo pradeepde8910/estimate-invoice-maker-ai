@@ -27,6 +27,7 @@ npm-debug.log*
 uploads/
 output/*.md
 output/*.json
+rate_card_overrides.json
 
 # Scratch
 scratch/

@@ -40,7 +40,7 @@ from invoice_builder import build_invoice
 from letterhead import apply_letterhead
 from pdf_builder import markdown_to_pdf, html_to_pdf
 import organization
-from db import init_db, SessionLocal, User, Client, Estimation, Document, Invoice, generate_next_serial
+from db import init_db, SessionLocal, User, Client, Estimation, Document, Invoice, RateCard, generate_next_serial
 
 app = FastAPI(title="Pixous Technologies API")
 
