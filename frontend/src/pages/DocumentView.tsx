@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import Topbar from '../components/Topbar'
 import Card from '../components/Card'
 import Mermaid from '../components/Mermaid'
-import HtmlFrame from '../components/HtmlFrame'
+import HtmlFrame, { type HtmlFrameHandle } from '../components/HtmlFrame'
 import { getJobDocument, getDocumentFile, updateDocumentContent, openDocumentPdf } from '../api/client'
 
 const TYPE_LABEL: Record<string, string> = {
@@ -23,8 +23,10 @@ export default function DocumentView({ source }: { source: 'job' | 'base' }) {
   const [draft, setDraft] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const frameRef = useRef<HtmlFrameHandle>(null)
 
   const canEdit = source === 'base' && !!params.baseName
+  const isInvoice = type === 'invoice'
 
   useEffect(() => {
     setContent(null)
@@ -53,11 +55,13 @@ export default function DocumentView({ source }: { source: 'job' | 'base' }) {
 
   async function saveEdit() {
     if (!params.baseName) return
+    const edited = isInvoice ? frameRef.current?.getHtml() : draft
+    if (!edited) return
     setSaving(true)
     setError(null)
     try {
-      await updateDocumentContent(params.baseName, type, draft)
-      setContent(draft)
+      await updateDocumentContent(params.baseName, type, edited)
+      setContent(edited)
       setEditing(false)
     } catch (e: any) {
       setError(e.message)
@@ -92,7 +96,7 @@ export default function DocumentView({ source }: { source: 'job' | 'base' }) {
               <button
                 disabled={!content}
                 onClick={() => {
-                  setDraft(content || '')
+                  if (!isInvoice) setDraft(content || '')
                   setEditing(true)
                 }}
                 className="text-sm font-medium bg-white shadow-card px-4 py-2 rounded-full text-slate-600 hover:bg-slate-50 disabled:opacity-50"
@@ -119,14 +123,21 @@ export default function DocumentView({ source }: { source: 'job' | 'base' }) {
         <Card>
           {error && <div className="text-sm text-coral-600 bg-coral-50 rounded-2xl px-4 py-3 mb-4">{error}</div>}
           {!content && !error && <p className="text-sm text-slate-400">Loading document…</p>}
-          {content && editing ? (
+          {content && editing && isInvoice ? (
+            <>
+              <p className="text-sm text-brand-600 bg-brand-50 rounded-2xl px-4 py-3 mb-4">
+                Click directly into the invoice below to edit it, then press Save Changes.
+              </p>
+              <HtmlFrame ref={frameRef} html={content} editable />
+            </>
+          ) : content && editing ? (
             <textarea
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               rows={28}
               className="w-full font-mono text-xs border border-slate-200 rounded-2xl p-4 focus:outline-none focus:ring-2 focus:ring-brand-300 resize-y"
             />
-          ) : type === 'invoice' ? (
+          ) : isInvoice ? (
             content && <HtmlFrame html={content} />
           ) : (
             content && (

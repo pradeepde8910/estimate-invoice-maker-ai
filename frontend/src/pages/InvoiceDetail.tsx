@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import Topbar from '../components/Topbar'
 import Card from '../components/Card'
-import HtmlFrame from '../components/HtmlFrame'
+import HtmlFrame, { type HtmlFrameHandle } from '../components/HtmlFrame'
 import { inr } from '../components/EstimationResult'
 import {
   getEstimationData,
@@ -32,9 +32,9 @@ export default function InvoiceDetail() {
   const [dueDays, setDueDays] = useState(15)
   const [generating, setGenerating] = useState(false)
   const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const frameRef = useRef<HtmlFrameHandle>(null)
 
   useEffect(() => {
     if (!baseName) return
@@ -77,11 +77,13 @@ export default function InvoiceDetail() {
 
   async function saveEdit() {
     if (!baseName) return
+    const edited = frameRef.current?.getHtml()
+    if (!edited) return
     setSaving(true)
     setError(null)
     try {
-      await updateDocumentContent(baseName, 'invoice', draft)
-      setInvoiceHtml(draft)
+      await updateDocumentContent(baseName, 'invoice', edited)
+      setInvoiceHtml(edited)
       setEditing(false)
     } catch (e: any) {
       setError(e.message)
@@ -199,10 +201,7 @@ export default function InvoiceDetail() {
                   </>
                 ) : (
                   <button
-                    onClick={() => {
-                      setDraft(invoiceHtml)
-                      setEditing(true)
-                    }}
+                    onClick={() => setEditing(true)}
                     className="text-sm font-medium bg-white shadow-card px-4 py-2 rounded-full text-slate-600 hover:bg-slate-50"
                   >
                     ✎ Edit
@@ -224,20 +223,14 @@ export default function InvoiceDetail() {
                 )}
               </div>
             </div>
-            {editing ? (
-              <Card>
-                <textarea
-                  value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
-                  rows={30}
-                  className="w-full font-mono text-xs border border-slate-200 rounded-2xl p-4 focus:outline-none focus:ring-2 focus:ring-brand-300 resize-y"
-                />
-              </Card>
-            ) : (
-              <div className="rounded-3xl overflow-hidden shadow-card">
-                <HtmlFrame html={invoiceHtml} />
-              </div>
+            {editing && (
+              <p className="text-sm text-brand-600 bg-brand-50 rounded-2xl px-4 py-3">
+                Click directly into the invoice below to edit it, then press Save.
+              </p>
             )}
+            <div className="rounded-3xl overflow-hidden shadow-card">
+              <HtmlFrame ref={frameRef} html={invoiceHtml} editable={editing} />
+            </div>
           </>
         )}
       </div>
