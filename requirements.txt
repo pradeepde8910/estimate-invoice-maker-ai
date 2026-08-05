@@ -25,6 +25,9 @@ uvicorn[standard]>=0.29.0
 gunicorn>=22.0.0
 python-multipart>=0.0.9
 
+# Database ORM
+sqlalchemy>=2.0.0
+
 # Production database driver (PostgreSQL)
 psycopg2-binary>=2.9.9
 
@@ -32,3 +35,4 @@ psycopg2-binary>=2.9.9
 markdown>=3.6
 xhtml2pdf>=0.2.16
 openpyxl>=3.1.0
+Pillow>=10.0.0
