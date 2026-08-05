@@ -6,7 +6,7 @@ import Topbar from '../components/Topbar'
 import Card from '../components/Card'
 import Mermaid from '../components/Mermaid'
 import HtmlFrame from '../components/HtmlFrame'
-import { getJobDocument, getDocumentFile, updateDocumentContent, documentPdfUrl } from '../api/client'
+import { getJobDocument, getDocumentFile, updateDocumentContent, openDocumentPdf } from '../api/client'
 
 const TYPE_LABEL: Record<string, string> = {
   quotation: 'Quotation',
@@ -108,14 +108,12 @@ export default function DocumentView({ source }: { source: 'job' | 'base' }) {
             ⬇ .md
           </button>
           {canEdit && (
-            <a
-              href={documentPdfUrl(params.baseName!, type)}
-              target="_blank"
-              rel="noreferrer"
+            <button
+              onClick={() => openDocumentPdf(params.baseName!, type).catch((e: any) => setError(e.message))}
               className="text-sm font-medium bg-brand-600 hover:bg-brand-700 text-white px-5 py-2.5 rounded-full"
             >
               ⬇ Download PDF
-            </a>
+            </button>
           )}
         </div>
         <Card>

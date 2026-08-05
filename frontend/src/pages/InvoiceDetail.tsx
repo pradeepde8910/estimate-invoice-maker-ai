@@ -10,7 +10,7 @@ import {
   generateInvoice,
   updateDocumentContent,
   updateInvoiceStatus,
-  documentPdfUrl,
+  openDocumentPdf,
 } from '../api/client'
 import type { InvoiceMeta, InvoiceStatus } from '../api/types'
 
@@ -215,14 +215,12 @@ export default function InvoiceDetail() {
                   ⬇ .html
                 </button>
                 {baseName && (
-                  <a
-                    href={documentPdfUrl(baseName, 'invoice')}
-                    target="_blank"
-                    rel="noreferrer"
+                  <button
+                    onClick={() => openDocumentPdf(baseName, 'invoice').catch((e: any) => setError(e.message))}
                     className="text-sm font-medium bg-brand-600 hover:bg-brand-700 text-white px-5 py-2.5 rounded-full"
                   >
                     ⬇ PDF
-                  </a>
+                  </button>
                 )}
               </div>
             </div>
