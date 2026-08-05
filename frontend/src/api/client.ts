@@ -116,23 +116,18 @@ export function documentPdfUrl(baseName: string, docType: string) {
 }
 
 export async function openDocumentPdf(baseName: string, docType: string) {
-  // Open the tab synchronously (inside the click handler's call stack) so
-  // popup blockers don't treat the later async redirect as an unsolicited popup.
-  const tab = window.open('', '_blank', 'noopener,noreferrer')
-  try {
-    const res = await fetch(documentPdfUrl(baseName, docType))
-    if (!res.ok) {
-      const text = await res.text().catch(() => res.statusText)
-      throw new ApiError(res.status, text || `Request failed (${res.status})`)
-    }
-    const blob = await res.blob()
-    const url = URL.createObjectURL(blob)
-    if (tab) tab.location.href = url
-    setTimeout(() => URL.revokeObjectURL(url), 60_000)
-  } catch (e) {
-    tab?.close()
-    throw e
+  const res = await fetch(documentPdfUrl(baseName, docType))
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText)
+    throw new ApiError(res.status, text || `Request failed (${res.status})`)
   }
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${baseName}_${docType}.pdf`
+  a.click()
+  setTimeout(() => URL.revokeObjectURL(url), 60_000)
 }
 
 export async function getRateCard(): Promise<{ rates: RateCard }> {
