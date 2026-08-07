@@ -3,10 +3,12 @@ import { useState } from 'react'
 import Topbar from '../components/Topbar'
 import { logout } from '../api/client'
 import ConfirmModal from '../components/ConfirmModal'
+import { useLogo } from '../hooks/useLogo'
 
 export default function Home() {
   const navigate = useNavigate()
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
+  const logoUrl = useLogo()
 
   const getGreeting = () => {
     const hour = new Date().getHours()
@@ -19,7 +21,10 @@ export default function Home() {
     <div className="flex-1 min-h-screen">
       <header className="flex items-center justify-between px-8 h-16 border-b border-slate-100 bg-white">
         <div className="flex items-center">
-          <img src="/branding/logo.png" alt="Pixous Technologies Logo" className="h-8 w-auto object-contain" />
+          {logoUrl
+            ? <img src={logoUrl} alt="Logo" className="h-8 w-auto object-contain" />
+            : <span className="text-sm font-bold text-slate-700">Pixous Technologies</span>
+          }
         </div>
         <div className="flex items-center gap-2">
           <button

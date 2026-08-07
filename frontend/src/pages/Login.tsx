@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { login } from '../api/client'
+import { useLogo } from '../hooks/useLogo'
 
 export default function Login() {
   const [username, setUsername] = useState('')
@@ -9,6 +10,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const navigate = useNavigate()
+  const logoUrl = useLogo()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -51,8 +53,11 @@ export default function Login() {
       <div className="relative w-full max-w-md px-6 py-12 z-10">
         {/* Logo and Brand Title */}
         <div className="flex flex-col items-center justify-center mb-8">
-          <img src="/branding/logo.png" alt="Pixous Technologies Logo" className="h-20 w-auto object-contain mb-4" />
-          <p className="text-sm text-slate-700 mt-1 uppercase tracking-wider font-bold text-center">Estimation & Invoicing Portal</p>
+          {logoUrl
+            ? <img src={logoUrl} alt="Logo" className="h-20 w-auto object-contain mb-4" />
+            : <span className="text-xl font-bold text-slate-700 mb-4">Pixous Technologies</span>
+          }
+          <p className="text-sm text-slate-700 mt-1 uppercase tracking-wider font-bold text-center">Estimation &amp; Invoicing Portal</p>
         </div>
 
         {/* Card */}

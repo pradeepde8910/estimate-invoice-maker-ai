@@ -5,6 +5,7 @@ import BackLink from '../components/BackLink'
 import { getOrganization, updateOrganization, uploadOrganizationAsset, deleteOrganizationAsset } from '../api/client'
 import ConfirmModal from '../components/ConfirmModal'
 import type { OrganizationProfile } from '../api/types'
+import { refreshLogo } from '../hooks/useLogo'
 
 type AssetSlotKey = 'logo' | 'signature' | 'seal'
 
@@ -71,7 +72,9 @@ export default function OrganizationSettings() {
     setError(null)
     try {
       const r = await uploadOrganizationAsset(slot, file)
-      setProfile((prev) => prev ? { ...prev, [`${slot}_path`]: (r.profile as any)[`${slot}_path`] } : r.profile)
+      const newPath = (r.profile as any)[`${slot}_path`]
+      setProfile((prev) => prev ? { ...prev, [`${slot}_path`]: newPath } : r.profile)
+      if (slot === 'logo') refreshLogo(newPath)
     } catch (e: any) {
       setError(e.message)
     }
@@ -82,6 +85,7 @@ export default function OrganizationSettings() {
     try {
       const r = await deleteOrganizationAsset(slot)
       setProfile((prev) => prev ? { ...prev, [`${slot}_path`]: (r.profile as any)[`${slot}_path`] } : r.profile)
+      if (slot === 'logo') refreshLogo(null)
     } catch (e: any) {
       setError(e.message)
     } finally {

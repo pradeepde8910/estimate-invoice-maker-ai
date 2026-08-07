@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { logout } from '../api/client'
 import ConfirmModal from './ConfirmModal'
+import { useLogo } from '../hooks/useLogo'
 
 
 interface NavItem {
@@ -30,11 +31,15 @@ export default function WorkspaceSidebar({ workspace }: { workspace: 'estimation
   const nav = workspace === 'estimation' ? ESTIMATION_NAV : INVOICE_NAV
   const label = workspace === 'estimation' ? 'Estimation Workspace' : 'Invoice Workspace'
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
+  const logoUrl = useLogo()
 
   return (
     <aside className="w-64 shrink-0 bg-white flex flex-col h-screen sticky top-0">
       <div className="flex flex-col gap-1 px-6 h-20 justify-center">
-        <img src="/branding/logo.png" alt="Pixous Technologies Logo" className="h-10 w-auto object-left object-contain" />
+        {logoUrl
+          ? <img src={logoUrl} alt="Logo" className="h-10 w-auto object-left object-contain" />
+          : <span className="text-sm font-bold text-slate-700 leading-tight">Pixous Technologies</span>
+        }
         <div className="text-[10px] text-black leading-none uppercase font-semibold tracking-wider mt-0.5">{label}</div>
       </div>
 
