@@ -163,6 +163,13 @@ class AuditLog(Base):
     user = relationship("User", back_populates="audit_logs")
 
 
+class BrandingAsset(Base):
+    __tablename__ = "branding_assets"
+    
+    slot = Column(String(50), primary_key=True)
+    file_name = Column(String(255), nullable=False)
+    data = Column(Text, nullable=False) # Base64 encoded
+
 def get_db():
     db = SessionLocal()
     try:
@@ -229,6 +236,27 @@ def sync_rate_card():
         db.close()
 
 
+def restore_branding_assets():
+    """Restore branding assets from the database to the local ephemeral filesystem."""
+    import base64
+    from organization import BRANDING_DIR
+    BRANDING_DIR.mkdir(exist_ok=True)
+    db = SessionLocal()
+    try:
+        assets = db.query(BrandingAsset).all()
+        for asset in assets:
+            dest = BRANDING_DIR / asset.file_name
+            try:
+                dest.write_bytes(base64.b64decode(asset.data))
+            except Exception as e:
+                print(f"Failed to restore branding asset {asset.file_name}: {e}")
+    except Exception as e:
+        print(f"Error restoring branding assets: {e}")
+    finally:
+        db.close()
+
+
 def init_db():
     Base.metadata.create_all(bind=engine)
     sync_rate_card()
+    restore_branding_assets()

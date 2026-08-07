@@ -137,6 +137,7 @@ def save_profile(fields: dict) -> dict:
 
 def save_branding_file(slot: str, filename: str, content: bytes) -> dict:
     """slot: 'logo' | 'signature' | 'seal'"""
+    import base64
     ext = Path(filename).suffix.lower() or ".png"
     # Validate BEFORE touching disk: an invalid/malicious upload must never
     # delete the existing valid asset for this slot.
@@ -148,9 +149,17 @@ def save_branding_file(slot: str, filename: str, content: bytes) -> dict:
         existing.unlink(missing_ok=True)
     dest.write_bytes(content)
 
-    from db import SessionLocal, OrganizationProfile
+    from db import SessionLocal, OrganizationProfile, BrandingAsset
     db = SessionLocal()
     try:
+        # Save to BrandingAsset table
+        asset = db.query(BrandingAsset).filter(BrandingAsset.slot == slot).first()
+        if not asset:
+            asset = BrandingAsset(slot=slot)
+            db.add(asset)
+        asset.file_name = f"{slot}{ext}"
+        asset.data = base64.b64encode(content).decode("utf-8")
+        
         profile_row = db.query(OrganizationProfile).first()
         if not profile_row:
             profile_row = OrganizationProfile(**DEFAULT_PROFILE)
@@ -188,9 +197,13 @@ def remove_branding_file(slot: str) -> dict:
     for existing in BRANDING_DIR.glob(f"{slot}.*"):
         existing.unlink(missing_ok=True)
 
-    from db import SessionLocal, OrganizationProfile
+    from db import SessionLocal, OrganizationProfile, BrandingAsset
     db = SessionLocal()
     try:
+        asset = db.query(BrandingAsset).filter(BrandingAsset.slot == slot).first()
+        if asset:
+            db.delete(asset)
+
         profile_row = db.query(OrganizationProfile).first()
         if profile_row:
             setattr(profile_row, f"{slot}_path", None)
