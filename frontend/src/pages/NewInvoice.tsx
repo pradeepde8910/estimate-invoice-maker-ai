@@ -120,33 +120,40 @@ function ManualInvoiceForm({ onCreated }: { onCreated: (baseName: string) => voi
         </div>
       </div>
 
-      <label className="text-sm font-medium text-slate-600">Line Items</label>
-      <div className="mt-2 space-y-2">
-        {rows.map((row, i) => (
-          <div key={i} className="grid grid-cols-12 gap-2 items-center">
-            <input
-              value={row.description}
-              onChange={(e) => updateRow(i, { description: e.target.value })}
-              placeholder="Description"
-              className="col-span-6 border border-slate-200 rounded-xl px-3 py-2 text-sm"
-            />
-            <input
-              type="number"
-              min={0}
-              value={row.quantity}
-              onChange={(e) => updateRow(i, { quantity: Number(e.target.value) })}
-              placeholder="Qty / Hours"
-              className="col-span-2 border border-slate-200 rounded-xl px-3 py-2 text-sm"
-            />
-            <input
-              type="number"
-              min={0}
-              value={row.rate}
-              onChange={(e) => updateRow(i, { rate: Number(e.target.value) })}
-              placeholder="Rate"
-              className="col-span-2 border border-slate-200 rounded-xl px-3 py-2 text-sm"
-            />
-            <div className="col-span-1 text-xs text-slate-500 tabular-nums text-right">{inr(row.quantity * row.rate)}</div>
+      <div className="mt-4">
+        <label className="text-sm font-medium text-slate-600 block mb-3">Line Items</label>
+        <div className="grid grid-cols-12 gap-2 items-center mb-2 px-1">
+          <div className="col-span-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Item / Description</div>
+          <div className="col-span-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Qty / Hours</div>
+          <div className="col-span-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Rate (₹)</div>
+          <div className="col-span-2 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right pr-8">Amount</div>
+        </div>
+        <div className="space-y-2">
+          {rows.map((row, i) => (
+            <div key={i} className="grid grid-cols-12 gap-2 items-center">
+              <input
+                value={row.description}
+                onChange={(e) => updateRow(i, { description: e.target.value })}
+                placeholder="e.g. Web Development"
+                className="col-span-6 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
+              />
+              <input
+                type="number"
+                min={0}
+                value={row.quantity}
+                onChange={(e) => updateRow(i, { quantity: Number(e.target.value) })}
+                placeholder="1"
+                className="col-span-2 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
+              />
+              <input
+                type="number"
+                min={0}
+                value={row.rate}
+                onChange={(e) => updateRow(i, { rate: Number(e.target.value) })}
+                placeholder="0"
+                className="col-span-2 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
+              />
+              <div className="col-span-1 text-sm font-medium text-slate-700 tabular-nums text-right">{inr(row.quantity * row.rate)}</div>
             <button
               onClick={() => removeRow(i)}
               disabled={rows.length === 1}
@@ -157,9 +164,12 @@ function ManualInvoiceForm({ onCreated }: { onCreated: (baseName: string) => voi
           </div>
         ))}
       </div>
-      <button onClick={addRow} className="mt-3 text-sm font-medium text-brand-600 hover:underline">
-        + Add line item
-      </button>
+      <div className="flex justify-end mt-3">
+        <button onClick={addRow} className="text-sm font-medium text-brand-600 hover:underline">
+          + Add line item
+        </button>
+      </div>
+      </div>
 
       <div className="flex items-center justify-between mt-5 pt-4 border-t border-slate-100">
         <div className="text-sm text-slate-500">

@@ -48,6 +48,15 @@ const HtmlFrame = forwardRef<HtmlFrameHandle, { html: string; editable?: boolean
         srcDoc={html}
         onLoad={handleLoad}
         title="Invoice preview"
+        // allow-same-origin (but NOT allow-scripts): the parent still needs
+        // same-origin access to contentDocument for getHtml()/designMode
+        // editing, but the invoice template never needs to run JavaScript,
+        // so script execution stays fully disabled. That means any <script>
+        // or on* handler that ends up in server-stored invoice HTML (e.g.
+        // via manual edits) simply never runs - it can't reach
+        // window.parent/localStorage regardless of what content makes it
+        // into invoice_html.
+        sandbox="allow-same-origin"
         style={{
           height,
           width: '100%',

@@ -20,9 +20,21 @@ GEMINI_API_KEYS: list[str] = [
 ]
 
 # ─── Authentication Settings ──────────────────────────────────────────────────
+# ADMIN_USERNAME/ADMIN_PASSWORD gate a one-time bootstrap login used only
+# before any User row exists (see api.py login_endpoint). No default
+# password ships in source; leaving ADMIN_PASSWORD unset simply disables
+# that bootstrap path, forcing account creation via scripts/create_user.py.
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
-JWT_SECRET = os.getenv("JWT_SECRET", "pixous-super-secret-key-12345")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
+
+JWT_SECRET = os.getenv("JWT_SECRET", "")
+if not JWT_SECRET:
+    raise RuntimeError(
+        "JWT_SECRET is not set. Generate one (e.g. `python -c \"import secrets; "
+        "print(secrets.token_urlsafe(48))\"`) and set it in your .env file - "
+        "the app refuses to start with no signing secret rather than fall "
+        "back to a value that used to be hardcoded in source."
+    )
 
 # ─── Database Settings ────────────────────────────────────────────────────────
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///pixous.db").strip()

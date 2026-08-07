@@ -6,18 +6,46 @@ import Stepper from '../components/Stepper'
 import CircularGauge from '../components/CircularGauge'
 import EstimationResult from '../components/EstimationResult'
 import { useJob } from '../JobContext'
-import { createJob } from '../api/client'
+import { createJob, cancelJob } from '../api/client'
+import type { Job } from '../api/types'
 
 type Mode = 'file' | 'url' | 'text'
+
+function formatDuration(ms: number): string {
+  const totalSeconds = Math.max(0, Math.round(ms / 1000))
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  if (minutes === 0) return `${seconds}s`
+  return `${minutes}m ${seconds}s`
+}
+
+/** Rough ETA: extrapolates from how long the completed steps took so far.
+ * Only meaningful once at least one step has finished — before that there's
+ * no data to extrapolate from. */
+function estimateRemaining(job: Job): string | null {
+  if (!job.created_at) return null
+  const completedSteps = job.status === 'queued' ? 0 : job.step_index + 1
+  if (completedSteps <= 0 || completedSteps >= job.steps.length) return null
+
+  const elapsedMs = Date.now() - new Date(job.created_at).getTime()
+  if (elapsedMs <= 0) return null
+
+  const avgPerStepMs = elapsedMs / completedSteps
+  const remainingSteps = job.steps.length - completedSteps
+  return formatDuration(avgPerStepMs * remainingSteps)
+}
 
 export default function NewEstimation() {
   const { job, jobId, setJobId } = useJob()
   const [showForm, setShowForm] = useState(!jobId)
+  const [cancelling, setCancelling] = useState(false)
   const navigate = useNavigate()
 
   useEffect(() => {
     setShowForm(!jobId)
   }, [jobId])
+
+  const isActive = job?.status === 'queued' || job?.status === 'running'
 
   const progressPct =
     !job || job.status === 'queued'
@@ -25,6 +53,19 @@ export default function NewEstimation() {
       : job.status === 'complete'
       ? 100
       : Math.round(((job.step_index + 1) / job.steps.length) * 100)
+
+  async function handleCancel() {
+    if (!jobId) return
+    setCancelling(true)
+    try {
+      await cancelJob(jobId)
+    } catch {
+      // Job may have already finished/failed on its own — the next poll
+      // will reflect whatever its real status is.
+    } finally {
+      setCancelling(false)
+    }
+  }
 
   return (
     <div className="flex-1">
@@ -42,21 +83,33 @@ export default function NewEstimation() {
               )}
             </div>
             <div className="flex items-center gap-3">
-              <button
-                onClick={() => navigate('/estimation/list')}
-                className="text-sm font-medium bg-white shadow-card px-4 py-2 rounded-full text-slate-600 hover:bg-slate-50"
-              >
-                View all estimations
-              </button>
-              <button
-                onClick={() => {
-                  setJobId(null)
-                  setShowForm(true)
-                }}
-                className="text-sm font-medium bg-white shadow-card px-4 py-2 rounded-full text-brand-700 hover:bg-brand-50"
-              >
-                + New Estimation
-              </button>
+              {isActive ? (
+                <button
+                  onClick={handleCancel}
+                  disabled={cancelling}
+                  className="text-sm font-medium bg-white shadow-card px-4 py-2 rounded-full text-coral-600 hover:bg-coral-50 disabled:opacity-50"
+                >
+                  {cancelling ? 'Cancelling…' : 'Cancel Estimation'}
+                </button>
+              ) : (
+                <>
+                  <button
+                    onClick={() => navigate('/estimation/list')}
+                    className="text-sm font-medium bg-white shadow-card px-4 py-2 rounded-full text-slate-600 hover:bg-slate-50"
+                  >
+                    View all estimations
+                  </button>
+                  <button
+                    onClick={() => {
+                      setJobId(null)
+                      setShowForm(true)
+                    }}
+                    className="text-sm font-medium bg-white shadow-card px-4 py-2 rounded-full text-brand-700 hover:bg-brand-50"
+                  >
+                    + New Estimation
+                  </button>
+                </>
+              )}
             </div>
           </div>
         )}
@@ -78,16 +131,28 @@ export default function NewEstimation() {
                 <Stepper steps={job.steps} stepIndex={job.status === 'queued' ? -1 : job.step_index} failed={job.status === 'failed'} />
                 <div
                   className={`mt-4 rounded-2xl px-4 py-3 text-sm ${
-                    job.status === 'failed' ? 'bg-coral-50 text-coral-700' : 'bg-brand-50 text-brand-700'
+                    job.status === 'failed'
+                      ? 'bg-coral-50 text-coral-700'
+                      : job.status === 'cancelled'
+                      ? 'bg-slate-100 text-slate-600'
+                      : 'bg-brand-50 text-brand-700'
                   }`}
                 >
                   {job.status === 'failed'
                     ? `Error: ${job.error}`
-                    : `Working through "${job.steps[job.step_index] ?? job.steps[0]}"...`}
+                    : job.status === 'cancelled'
+                    ? 'Estimation cancelled.'
+                    : (() => {
+                        const eta = estimateRemaining(job)
+                        return `Working through "${job.steps[job.step_index] ?? job.steps[0]}"...${eta ? ` (~${eta} remaining)` : ''}`
+                      })()}
                 </div>
               </div>
               <div className="flex flex-col items-center">
-                <CircularGauge value={progressPct} label={job.status === 'failed' ? 'Failed' : 'In progress'} />
+                <CircularGauge
+                  value={progressPct}
+                  label={job.status === 'failed' ? 'Failed' : job.status === 'cancelled' ? 'Cancelled' : 'In progress'}
+                />
               </div>
             </div>
           </Card>

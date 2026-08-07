@@ -1,5 +1,7 @@
+import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { logout } from '../api/client'
+import ConfirmModal from './ConfirmModal'
 
 
 interface NavItem {
@@ -27,12 +29,13 @@ const INVOICE_NAV: NavItem[] = [
 export default function WorkspaceSidebar({ workspace }: { workspace: 'estimation' | 'invoice' }) {
   const nav = workspace === 'estimation' ? ESTIMATION_NAV : INVOICE_NAV
   const label = workspace === 'estimation' ? 'Estimation Workspace' : 'Invoice Workspace'
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
 
   return (
     <aside className="w-64 shrink-0 bg-white flex flex-col h-screen sticky top-0">
       <div className="flex flex-col gap-1 px-6 h-20 justify-center">
         <img src="/branding/logo.png" alt="Pixous Technologies Logo" className="h-10 w-auto object-left object-contain" />
-        <div className="text-[10px] text-slate-400 leading-none uppercase font-semibold tracking-wider mt-0.5">{label}</div>
+        <div className="text-[10px] text-black leading-none uppercase font-semibold tracking-wider mt-0.5">{label}</div>
       </div>
 
       <nav className="flex-1 px-4 py-2 space-y-1.5">
@@ -45,7 +48,7 @@ export default function WorkspaceSidebar({ workspace }: { workspace: 'estimation
               `flex items-center gap-3 px-4 py-2.5 rounded-2xl text-sm font-medium transition-colors ${
                 isActive
                   ? 'bg-brand-100 text-brand-700'
-                  : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'
+                  : 'text-black hover:bg-slate-50 hover:text-black'
               }`
             }
           >
@@ -58,18 +61,26 @@ export default function WorkspaceSidebar({ workspace }: { workspace: 'estimation
       <div className="px-4 pb-2">
         <NavLink
           to="/"
-          className="flex items-center gap-3 px-4 py-2.5 rounded-2xl text-sm font-medium text-slate-400 hover:bg-slate-50 hover:text-slate-600"
+          className="flex items-center gap-3 px-4 py-2.5 rounded-2xl text-sm font-medium text-black hover:bg-slate-50 hover:text-black"
         >
           <HomeIcon className="w-5 h-5 shrink-0" />
           Back to Home
         </NavLink>
         <button
-          onClick={logout}
+          onClick={() => setShowLogoutConfirm(true)}
           className="w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl text-sm font-medium text-coral-500 hover:bg-coral-50 hover:text-coral-600 transition-colors mt-1"
         >
           <LogoutIcon className="w-5 h-5 shrink-0" />
           Log Out
         </button>
+        <ConfirmModal
+          isOpen={showLogoutConfirm}
+          title="Log Out"
+          message="Are you sure you want to log out of your session?"
+          confirmText="Log Out"
+          onConfirm={logout}
+          onCancel={() => setShowLogoutConfirm(false)}
+        />
       </div>
 
       <div className="m-4 rounded-2xl bg-slate-50 p-3 flex items-center gap-3">

@@ -7,6 +7,8 @@ import Card from '../components/Card'
 import Mermaid from '../components/Mermaid'
 import HtmlFrame, { type HtmlFrameHandle } from '../components/HtmlFrame'
 import { getJobDocument, getDocumentFile, updateDocumentContent, openDocumentPdf } from '../api/client'
+import { Editor } from '@toast-ui/react-editor'
+import '@toast-ui/editor/dist/toastui-editor.css'
 
 const TYPE_LABEL: Record<string, string> = {
   quotation: 'Quotation',
@@ -24,6 +26,7 @@ export default function DocumentView({ source }: { source: 'job' | 'base' }) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const frameRef = useRef<HtmlFrameHandle>(null)
+  const editorRef = useRef<Editor>(null)
 
   const canEdit = source === 'base' && !!params.baseName
   const isInvoice = type === 'invoice'
@@ -55,7 +58,7 @@ export default function DocumentView({ source }: { source: 'job' | 'base' }) {
 
   async function saveEdit() {
     if (!params.baseName) return
-    const edited = isInvoice ? frameRef.current?.getHtml() : draft
+    const edited = isInvoice ? frameRef.current?.getHtml() : (editorRef.current?.getInstance().getMarkdown() || draft)
     if (!edited) return
     setSaving(true)
     setError(null)
@@ -131,12 +134,17 @@ export default function DocumentView({ source }: { source: 'job' | 'base' }) {
               <HtmlFrame ref={frameRef} html={content} editable />
             </>
           ) : content && editing ? (
-            <textarea
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              rows={28}
-              className="w-full font-mono text-xs border border-slate-200 rounded-2xl p-4 focus:outline-none focus:ring-2 focus:ring-brand-300 resize-y"
-            />
+            <div className="prose-editor-container">
+              <Editor
+                ref={editorRef}
+                initialValue={draft}
+                initialEditType="wysiwyg"
+                useCommandShortcut={true}
+                hideModeSwitch={true}
+                height="auto"
+                minHeight="500px"
+              />
+            </div>
           ) : isInvoice ? (
             content && <HtmlFrame html={content} />
           ) : (
@@ -156,6 +164,15 @@ export default function DocumentView({ source }: { source: 'job' | 'base' }) {
                           {children}
                         </code>
                       )
+                    },
+                    img(props) {
+                      // The letterhead logo is embedded as a plain markdown
+                      // image with no size hint, so it renders at whatever
+                      // resolution the uploaded file happens to be — often
+                      // far larger than the small header logo it's meant to
+                      // be. Cap it the same way the PDF export already does
+                      // (pdf_builder.py's _size_branding_images).
+                      return <img {...props} className="max-h-16 w-auto inline-block" />
                     },
                   }}
                 >

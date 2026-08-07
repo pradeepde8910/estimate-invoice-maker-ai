@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import re
 import tempfile
@@ -41,6 +42,11 @@ from letterhead import apply_letterhead
 from pdf_builder import markdown_to_pdf, html_to_pdf
 import organization
 from db import init_db, SessionLocal, User, Client, Estimation, Document, Invoice, RateCard, generate_next_serial
+from utils.security import hash_password, is_bcrypt_hash, verify_password
+from utils.rate_limiter import check_login_rate_limit, record_login_failure, record_login_success
+from utils.html_sanitize import strip_script_vectors
+
+logger = logging.getLogger("pixous.api")
 
 app = FastAPI(title="Pixous Technologies API")
 
@@ -108,21 +114,44 @@ class InvoicePatch(BaseModel):
         return v
 
 @app.post("/api/auth/login")
-async def login_endpoint(payload: LoginRequest):
+async def login_endpoint(payload: LoginRequest, request: Request):
+    client_ip = request.client.host if request.client else "unknown"
+    locked_seconds = check_login_rate_limit(client_ip, payload.username)
+    if locked_seconds is not None:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Too many failed login attempts. Try again in {int(locked_seconds) // 60 + 1} minute(s).",
+        )
+
     db = SessionLocal()
     try:
         user = db.query(User).filter(User.username == payload.username).first()
-        # Fallback to config defaults if no users exist in the DB
+
+        # Bootstrap-only fallback: lets an operator log in as the configured
+        # admin before any User row exists. Disabled entirely if
+        # ADMIN_PASSWORD isn't set - no hardcoded default credential exists.
         if not user and db.query(User).count() == 0:
-            if payload.username == config.ADMIN_USERNAME and payload.password == config.ADMIN_PASSWORD:
+            if (
+                config.ADMIN_PASSWORD
+                and payload.username == config.ADMIN_USERNAME
+                and hmac.compare_digest(payload.password.encode("utf-8"), config.ADMIN_PASSWORD.encode("utf-8"))
+            ):
+                record_login_success(client_ip, payload.username)
                 token = create_token(payload.username)
                 return {"token": token}
-        
-        # If user exists, check password hash
-        if user and user.password_hash == payload.password:
+
+        if user and verify_password(payload.password, user.password_hash):
+            if not is_bcrypt_hash(user.password_hash):
+                # Transparent upgrade: this row was still holding the
+                # pre-hashing plaintext value. Re-hash now that we've
+                # verified the correct password was supplied.
+                user.password_hash = hash_password(payload.password)
+                db.commit()
+            record_login_success(client_ip, payload.username)
             token = create_token(payload.username)
             return {"token": token}
-            
+
+        record_login_failure(client_ip, payload.username)
         raise HTTPException(status_code=401, detail="Invalid username or password")
     finally:
         db.close()
@@ -143,10 +172,18 @@ async def auth_middleware(request: Request, call_next):
     return response
 
 
+# allow_credentials=False deliberately: auth is a Bearer token in the
+# Authorization header (never a cookie - see client.ts, no `credentials:
+# 'include'` anywhere), so there's nothing for a cross-site request to ride
+# along automatically. That makes allow_origins=["*"] safe here; combining
+# a wildcard origin with allow_credentials=True is what's dangerous
+# (browsers refuse to reflect "*" with credentials anyway, but Starlette
+# was reflecting the request's Origin verbatim instead, which defeats the
+# same protection).
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -387,7 +424,8 @@ async def create_job(
         "source_name": file.filename if file else (url or (text[:60] if text else "")),
         "created_at": datetime.now().isoformat(),
     }
-    asyncio.create_task(_run_job(job_id, raw_input, generate_brd, generate_srs))
+    job_task = asyncio.create_task(_run_job(job_id, raw_input, generate_brd, generate_srs))
+    JOBS[job_id]["_task"] = job_task
     return {"job_id": job_id}
 
 
@@ -406,7 +444,25 @@ async def get_job(job_id: str):
         "source_name": job.get("source_name"),
         "result": job.get("result"),
         "base_name": job.get("base_name"),
+        "created_at": job.get("created_at"),
     }
+
+
+@app.post("/api/jobs/{job_id}/cancel")
+async def cancel_job(job_id: str):
+    job = JOBS.get(job_id)
+    if not job:
+        raise HTTPException(404, "Job not found")
+    if job["status"] in ("complete", "failed", "cancelled"):
+        raise HTTPException(400, f"Job is already {job['status']} and can't be cancelled.")
+
+    task = job.get("_task")
+    if task and not task.done():
+        task.cancel()
+
+    job["status"] = "cancelled"
+    job["error"] = "Cancelled by user"
+    return {"status": "cancelled"}
 
 
 @app.get("/api/jobs/{job_id}/document/{doc_type}", response_class=PlainTextResponse)
@@ -616,20 +672,47 @@ class OrganizationUpdate(BaseModel):
     bank_account_number: str = ""
     bank_ifsc: str = ""
     bank_branch: str = ""
+    invoice_terms: str = ""
 
 
 @app.put("/api/organization")
-async def update_organization(payload: OrganizationUpdate):
+async def update_organization(payload: OrganizationUpdate, request: Request):
+    db = SessionLocal()
+    try:
+        require_role(request, db, {"Admin"})
+    finally:
+        db.close()
     profile = organization.save_profile(payload.model_dump())
     return {"profile": profile}
 
 
 @app.post("/api/organization/{slot}")
-async def upload_organization_asset(slot: str, file: UploadFile = File(...)):
+async def upload_organization_asset(slot: str, request: Request, file: UploadFile = File(...)):
+    db = SessionLocal()
+    try:
+        require_role(request, db, {"Admin"})
+    finally:
+        db.close()
     if slot not in ("logo", "signature", "seal"):
         raise HTTPException(400, "Unknown branding asset slot")
     content = await file.read()
-    profile = organization.save_branding_file(slot, file.filename or f"{slot}.png", content)
+    try:
+        profile = organization.save_branding_file(slot, file.filename or f"{slot}.png", content)
+    except organization.InvalidBrandingAssetError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"profile": profile}
+
+
+@app.delete("/api/organization/{slot}")
+async def delete_organization_asset(slot: str, request: Request):
+    db = SessionLocal()
+    try:
+        require_role(request, db, {"Admin"})
+    finally:
+        db.close()
+    if slot not in ("logo", "signature", "seal"):
+        raise HTTPException(400, "Unknown branding asset slot")
+    profile = organization.remove_branding_file(slot)
     return {"profile": profile}
 
 
@@ -877,7 +960,7 @@ class InvoiceStatusUpdate(BaseModel):
 
 
 @app.put("/api/estimations/{base_name}/invoice/status")
-async def update_invoice_status(base_name: str, payload: InvoiceStatusUpdate):
+async def update_invoice_status(base_name: str, payload: InvoiceStatusUpdate, request: Request):
     if payload.status not in INVOICE_STATUSES:
         raise HTTPException(400, f"Status must be one of {INVOICE_STATUSES}")
 
@@ -885,6 +968,7 @@ async def update_invoice_status(base_name: str, payload: InvoiceStatusUpdate):
     meta = None
     new_html = None
     try:
+        require_role(request, db, {"Admin", "Finance"})
         inv = db.query(Invoice).filter(Invoice.estimation_id == base_name).order_by(Invoice.created_at.desc()).first()
         if inv:
             inv.status = payload.status
@@ -918,8 +1002,11 @@ async def update_invoice_status(base_name: str, payload: InvoiceStatusUpdate):
                 raw_json["invoice_meta"] = meta
                 raw_json["invoice_html"] = new_html
                 est.raw_pipeline_json = raw_json
-            
+
             db.commit()
+    except HTTPException:
+        db.rollback()
+        raise
     except Exception as e:
         db.rollback()
         print(f"DB update_invoice_status failed: {e}")
@@ -948,7 +1035,7 @@ async def update_document_content(base_name: str, doc_type: str, payload: Docume
         if doc_type == "invoice":
             inv = db.query(Invoice).filter(Invoice.estimation_id == base_name).order_by(Invoice.created_at.desc()).first()
             if inv:
-                inv.invoice_html = payload.content
+                inv.invoice_html = strip_script_vectors(payload.content)
                 db.commit()
         else:
             latest_doc = db.query(Document).filter(
@@ -1086,9 +1173,10 @@ class RateCardUpdate(BaseModel):
 
 
 @app.put("/api/rate-card")
-async def update_rate_card(payload: RateCardUpdate):
+async def update_rate_card(payload: RateCardUpdate, request: Request):
     db = SessionLocal()
     try:
+        require_role(request, db, {"Admin"})
         for key, value in payload.rates.items():
             if key in config.DEVELOPER_RATES:
                 new_rate = value.get("rate_per_hour")
@@ -1124,6 +1212,9 @@ async def update_rate_card(payload: RateCardUpdate):
                     
                     config.DEVELOPER_RATES[key]["rate_per_hour"] = new_rate
         db.commit()
+    except HTTPException:
+        db.rollback()
+        raise
     except Exception as e:
         db.rollback()
         print(f"DB update_rate_card failed: {e}")
@@ -1155,20 +1246,48 @@ async def health():
 
 
 def get_current_username(request: Request) -> str:
+    """Extracts the username from the bearer token, re-verifying its HMAC
+    signature here rather than trusting that auth_middleware already ran
+    (defense in depth - this used to decode the payload unverified and
+    silently fall back to "admin" on any parse error, a fail-open trap)."""
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Unauthorized. Please log in.")
+    token = auth_header.split(" ", 1)[1]
+    if not verify_token(token):
+        raise HTTPException(status_code=401, detail="Session expired or invalid token.")
     try:
-        auth_header = request.headers.get("Authorization")
-        if auth_header and auth_header.startswith("Bearer "):
-            token = auth_header.split(" ")[1]
-            parts = token.split(".")
-            if len(parts) == 2:
-                payload_b64 = parts[0]
-                padding = "=" * (4 - len(payload_b64) % 4)
-                payload_json = base64.urlsafe_b64decode(payload_b64 + padding).decode()
-                payload = json.loads(payload_json)
-                return payload.get("user") or "admin"
+        payload_b64 = token.split(".")[0]
+        padding = "=" * (4 - len(payload_b64) % 4)
+        payload = json.loads(base64.urlsafe_b64decode(payload_b64 + padding).decode())
+        username = payload.get("user")
+        if not username:
+            raise ValueError("token payload missing user claim")
+        return username
     except Exception:
-        pass
-    return "admin"
+        raise HTTPException(status_code=401, detail="Invalid token payload.")
+
+
+def get_current_role(request: Request, db) -> str:
+    """Resolves the calling user's role. Falls back to 'Admin' only for the
+    bootstrap admin username (no matching User row) - the same identity the
+    login endpoint itself trusts before any user account exists. Any other
+    username with a validly-signed token but no matching row gets the
+    least-privileged role rather than defaulting to admin access."""
+    username = get_current_username(request)
+    user_row = db.query(User).filter(User.username == username).first()
+    if user_row:
+        return user_row.role or "Admin"
+    if username == config.ADMIN_USERNAME:
+        return "Admin"
+    return "Developer"
+
+
+def require_role(request: Request, db, allowed_roles: set[str]) -> str:
+    role = get_current_role(request, db)
+    if role not in allowed_roles:
+        raise HTTPException(status_code=403, detail="You do not have permission to perform this action.")
+    return role
 
 
 @app.patch("/api/estimations/{id}")
@@ -1233,7 +1352,8 @@ async def patch_estimation(id: str, payload: EstimationPatch, request: Request):
         raise
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("patch_estimation failed")
+        raise HTTPException(status_code=500, detail="Failed to update estimation.")
     finally:
         db.close()
 
@@ -1242,10 +1362,11 @@ async def patch_estimation(id: str, payload: EstimationPatch, request: Request):
 async def delete_estimation(id: str, request: Request):
     db = SessionLocal()
     try:
+        require_role(request, db, {"Admin"})
         est = db.query(Estimation).filter(Estimation.id == id, Estimation.is_deleted == False).first()
         if not est:
             raise HTTPException(status_code=404, detail="Estimation not found")
-        
+
         username = get_current_username(request)
         user_row = db.query(User).filter(User.username == username).first()
         user_id = user_row.id if user_row else None
@@ -1272,7 +1393,8 @@ async def delete_estimation(id: str, request: Request):
         raise
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("delete_estimation failed")
+        raise HTTPException(status_code=500, detail="Failed to delete estimation.")
     finally:
         db.close()
 
@@ -1345,7 +1467,8 @@ async def patch_invoice(id: str, payload: InvoicePatch, request: Request):
         raise
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("patch_invoice failed")
+        raise HTTPException(status_code=500, detail="Failed to update invoice.")
     finally:
         db.close()
 
@@ -1359,7 +1482,8 @@ if FRONTEND_DIST.exists():
 
     @app.get("/{full_path:path}")
     async def serve_frontend(full_path: str):
-        candidate = FRONTEND_DIST / full_path
-        if full_path and candidate.is_file():
+        dist_root = FRONTEND_DIST.resolve()
+        candidate = (dist_root / full_path).resolve()
+        if full_path and candidate.is_relative_to(dist_root) and candidate.is_file():
             return FileResponse(candidate)
-        return FileResponse(FRONTEND_DIST / "index.html")
+        return FileResponse(dist_root / "index.html")

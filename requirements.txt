@@ -28,6 +28,9 @@ python-multipart>=0.0.9
 # Database ORM
 sqlalchemy>=2.0.0
 
+# Password hashing
+bcrypt>=4.1.0
+
 # Production database driver (PostgreSQL)
 psycopg2-binary>=2.9.9
 

@@ -2,21 +2,25 @@ import { useEffect, useRef, useState } from 'react'
 import Topbar from '../components/Topbar'
 import Card from '../components/Card'
 import BackLink from '../components/BackLink'
-import { getOrganization, updateOrganization, uploadOrganizationAsset } from '../api/client'
+import { getOrganization, updateOrganization, uploadOrganizationAsset, deleteOrganizationAsset } from '../api/client'
+import ConfirmModal from '../components/ConfirmModal'
 import type { OrganizationProfile } from '../api/types'
 
-const FIELD_ROWS: { key: keyof OrganizationProfile; label: string; placeholder?: string; span?: boolean }[] = [
+type AssetSlotKey = 'logo' | 'signature' | 'seal'
+
+const FIELD_ROWS: { key: keyof OrganizationProfile; label: string; placeholder?: string; span?: boolean; multiline?: boolean }[] = [
   { key: 'name', label: 'Company Name', span: true },
   { key: 'tagline', label: 'Tagline', placeholder: 'e.g. Strategize · Amplify · Transform', span: true },
-  { key: 'address', label: 'Address', span: true },
+  { key: 'address', label: 'Address', span: true, multiline: true },
   { key: 'email', label: 'Email' },
   { key: 'phone', label: 'Phone' },
   { key: 'website', label: 'Website' },
   { key: 'gstin', label: 'GSTIN' },
   { key: 'registration_number', label: 'Registration Number' },
-  { key: 'certifications', label: 'Certifications', placeholder: 'e.g. ISO 9001:2015 · CMMI Level 3', span: true },
+  { key: 'certifications', label: 'Certifications', placeholder: 'e.g. ISO 9001:2015 · CMMI Level 3', span: true, multiline: true },
   { key: 'signatory_name', label: 'Authorized Signatory Name' },
   { key: 'signatory_title', label: 'Signatory Title' },
+  { key: 'invoice_terms', label: 'Invoice Terms & Conditions', placeholder: 'Enter terms, one per line', span: true, multiline: true },
 ]
 
 const BANK_FIELD_ROWS: { key: keyof OrganizationProfile; label: string }[] = [
@@ -31,10 +35,19 @@ export default function OrganizationSettings() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [bankExpanded, setBankExpanded] = useState(false)
+  const [removeConfirm, setRemoveConfirm] = useState<AssetSlotKey | null>(null)
 
   useEffect(() => {
     getOrganization()
-      .then((r) => setProfile(r.profile))
+      .then((r) => {
+        setProfile(r.profile)
+        // Auto-expand if bank details were already filled in, so existing
+        // data isn't hidden behind a collapsed section by surprise.
+        if (BANK_FIELD_ROWS.some((f) => (r.profile as any)[f.key])) {
+          setBankExpanded(true)
+        }
+      })
       .catch((e) => setError(e.message))
   }, [])
 
@@ -54,13 +67,25 @@ export default function OrganizationSettings() {
     }
   }
 
-  async function handleAssetUpload(slot: 'logo' | 'signature' | 'seal', file: File) {
+  async function handleAssetUpload(slot: AssetSlotKey, file: File) {
     setError(null)
     try {
       const r = await uploadOrganizationAsset(slot, file)
-      setProfile(r.profile)
+      setProfile((prev) => prev ? { ...prev, [`${slot}_path`]: (r.profile as any)[`${slot}_path`] } : r.profile)
     } catch (e: any) {
       setError(e.message)
+    }
+  }
+
+  async function handleAssetRemove(slot: AssetSlotKey) {
+    setError(null)
+    try {
+      const r = await deleteOrganizationAsset(slot)
+      setProfile((prev) => prev ? { ...prev, [`${slot}_path`]: (r.profile as any)[`${slot}_path`] } : r.profile)
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setRemoveConfirm(null)
     }
   }
 
@@ -94,36 +119,66 @@ export default function OrganizationSettings() {
                 {FIELD_ROWS.map((f) => (
                   <div key={f.key} className={f.span ? 'col-span-2' : ''}>
                     <label className="text-xs font-medium text-slate-500">{f.label}</label>
-                    <input
-                      value={(profile[f.key] as string) || ''}
-                      placeholder={f.placeholder}
-                      onChange={(e) => {
-                        setProfile({ ...profile, [f.key]: e.target.value })
-                        setSaved(false)
-                      }}
-                      className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
-                    />
+                    {f.multiline ? (
+                      <textarea
+                        value={(profile[f.key] as string) || ''}
+                        placeholder={f.placeholder}
+                        rows={3}
+                        onChange={(e) => {
+                          setProfile({ ...profile, [f.key]: e.target.value })
+                          setSaved(false)
+                        }}
+                        className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300 resize-none"
+                      />
+                    ) : (
+                      <input
+                        value={(profile[f.key] as string) || ''}
+                        placeholder={f.placeholder}
+                        onChange={(e) => {
+                          setProfile({ ...profile, [f.key]: e.target.value })
+                          setSaved(false)
+                        }}
+                        className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
+                      />
+                    )}
                   </div>
                 ))}
               </div>
             </Card>
 
-            <Card title="Bank Details" action={<span className="text-xs text-slate-400">Shown on invoices, when filled in</span>}>
-              <div className="grid grid-cols-2 gap-4">
-                {BANK_FIELD_ROWS.map((f) => (
-                  <div key={f.key}>
-                    <label className="text-xs font-medium text-slate-500">{f.label}</label>
-                    <input
-                      value={(profile[f.key] as string) || ''}
-                      onChange={(e) => {
-                        setProfile({ ...profile, [f.key]: e.target.value })
-                        setSaved(false)
-                      }}
-                      className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
-                    />
-                  </div>
-                ))}
-              </div>
+            <Card
+              title="Bank Details (used on Invoices only)"
+              action={
+                <button
+                  onClick={() => setBankExpanded((v) => !v)}
+                  className="text-xs font-medium text-slate-500 hover:text-slate-700"
+                >
+                  {bankExpanded ? 'Hide' : 'Show'}
+                </button>
+              }
+            >
+              {bankExpanded ? (
+                <div className="grid grid-cols-2 gap-4">
+                  {BANK_FIELD_ROWS.map((f) => (
+                    <div key={f.key}>
+                      <label className="text-xs font-medium text-slate-500">{f.label}</label>
+                      <input
+                        value={(profile[f.key] as string) || ''}
+                        onChange={(e) => {
+                          setProfile({ ...profile, [f.key]: e.target.value })
+                          setSaved(false)
+                        }}
+                        className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
+                      />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-slate-400">
+                  Only needed when generating invoices — not used anywhere else in the estimation workflow.
+                  Click "Show" to view or edit.
+                </p>
+              )}
             </Card>
 
             <Card title="Branding Assets">
@@ -132,16 +187,19 @@ export default function OrganizationSettings() {
                   label="Logo"
                   path={profile.logo_path}
                   onUpload={(f) => handleAssetUpload('logo', f)}
+                  onRemove={() => setRemoveConfirm('logo')}
                 />
                 <AssetSlot
                   label="Signature"
                   path={profile.signature_path}
                   onUpload={(f) => handleAssetUpload('signature', f)}
+                  onRemove={() => setRemoveConfirm('signature')}
                 />
                 <AssetSlot
                   label="Company Seal"
                   path={profile.seal_path}
                   onUpload={(f) => handleAssetUpload('seal', f)}
+                  onRemove={() => setRemoveConfirm('seal')}
                 />
               </div>
               <p className="text-xs text-slate-400 mt-4">
@@ -152,17 +210,36 @@ export default function OrganizationSettings() {
           </>
         )}
       </div>
+
+      <ConfirmModal
+        isOpen={removeConfirm !== null}
+        title="Remove branding asset?"
+        message={`This will remove the ${removeConfirm ?? ''} from every future generated document until you upload a new one.`}
+        confirmText="Remove"
+        onConfirm={() => removeConfirm && handleAssetRemove(removeConfirm)}
+        onCancel={() => setRemoveConfirm(null)}
+      />
     </div>
   )
 }
 
-function AssetSlot({ label, path, onUpload }: { label: string; path: string | null; onUpload: (f: File) => void }) {
+function AssetSlot({
+  label,
+  path,
+  onUpload,
+  onRemove,
+}: {
+  label: string
+  path: string | null
+  onUpload: (f: File) => void
+  onRemove: () => void
+}) {
   const inputRef = useRef<HTMLInputElement>(null)
   return (
     <div>
       <div
         onClick={() => inputRef.current?.click()}
-        className="aspect-square rounded-2xl bg-slate-50 border-2 border-dashed border-slate-200 hover:border-brand-300 cursor-pointer flex items-center justify-center overflow-hidden"
+        className="relative aspect-square rounded-2xl bg-slate-50 border-2 border-dashed border-slate-200 hover:border-brand-300 cursor-pointer flex items-center justify-center overflow-hidden"
       >
         <input
           ref={inputRef}
@@ -175,7 +252,19 @@ function AssetSlot({ label, path, onUpload }: { label: string; path: string | nu
           }}
         />
         {path ? (
-          <img src={`/branding/${path}?t=${Date.now()}`} alt={label} className="w-full h-full object-contain p-3" />
+          <>
+            <img src={`/branding/${path}?t=${Date.now()}`} alt={label} className="w-full h-full object-contain p-3" />
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onRemove()
+              }}
+              title={`Remove ${label}`}
+              className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-white shadow-card text-slate-500 hover:text-coral-600 hover:bg-coral-50 flex items-center justify-center text-sm leading-none"
+            >
+              ×
+            </button>
+          </>
         ) : (
           <span className="text-xs text-slate-400 text-center px-2">Click to upload</span>
         )}

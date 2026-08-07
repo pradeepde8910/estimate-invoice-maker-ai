@@ -46,6 +46,8 @@ export function JobProvider({ children }: { children: React.ReactNode }) {
             ])
           } else if (j.status === 'failed') {
             setNotifications((n) => [...n, `Estimation failed: ${j.error ?? 'unknown error'}`])
+          } else if (j.status === 'cancelled') {
+            setNotifications((n) => [...n, `Estimation cancelled for ${j.source_name}`])
           }
           lastStatus.current = j.status
         }

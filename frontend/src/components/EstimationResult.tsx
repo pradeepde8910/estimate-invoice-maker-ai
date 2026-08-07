@@ -71,13 +71,6 @@ export default function EstimationResult({
             <DocAction label="SRS" ready={result.has_srs} onClick={() => navigate(docPath('srs'))} />
             <DocAction label="Quotation" ready={result.has_quotation} onClick={() => navigate(docPath('quotation'))} />
           </div>
-          <button
-            disabled={!baseName}
-            onClick={() => baseName && navigate(`/invoice/${baseName}`)}
-            className="mt-4 w-full bg-brand-600 hover:bg-brand-700 disabled:bg-slate-200 disabled:text-slate-400 text-white text-sm font-medium py-3 rounded-full"
-          >
-            🧾 Generate Invoice
-          </button>
         </Card>
       </div>
     </div>

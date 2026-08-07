@@ -74,7 +74,7 @@ export interface JobResult {
   has_quotation: boolean
 }
 
-export type JobStatus = 'queued' | 'running' | 'complete' | 'failed'
+export type JobStatus = 'queued' | 'running' | 'complete' | 'failed' | 'cancelled'
 
 export interface Job {
   id: string
@@ -86,6 +86,7 @@ export interface Job {
   source_name: string
   result: JobResult | null
   base_name: string | null
+  created_at: string | null
 }
 
 export type InvoiceStatus = 'Draft' | 'Sent' | 'Paid' | 'Overdue' | 'Cancelled'
@@ -145,6 +146,7 @@ export interface OrganizationProfile {
   logo_path: string | null
   signature_path: string | null
   seal_path: string | null
+  invoice_terms: string
 }
 
 export interface Analytics {

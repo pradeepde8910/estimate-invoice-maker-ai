@@ -68,21 +68,23 @@ export default function EstimationList() {
                 </div>
                 <ul className="divide-y divide-slate-100">
                   {c.estimations.map((e) => (
-                    <li key={e.base_name} className="flex items-center justify-between py-2.5">
+                    <li key={e.base_name}>
                       <button
                         onClick={() => navigate(`/estimation/${e.base_name}`)}
-                        className="text-sm text-slate-600 hover:text-brand-700 text-left truncate max-w-xs"
+                        className="w-full flex items-center justify-between py-3 px-3 -mx-3 rounded-xl hover:bg-slate-50 group transition-colors"
                       >
-                        {e.project_name}
+                        <span className="text-sm font-medium text-slate-700 group-hover:text-brand-700 text-left truncate max-w-md">
+                          {e.project_name}
+                        </span>
+                        <div className="flex items-center gap-3 shrink-0">
+                          {e.grand_total != null && (
+                            <span className="text-sm font-semibold text-slate-800 tabular-nums">{inr(e.grand_total)}</span>
+                          )}
+                          {e.has_invoice && (
+                            <span className="text-[11px] font-medium bg-brand-50 text-brand-600 px-2 py-1 rounded-full">Invoiced</span>
+                          )}
+                        </div>
                       </button>
-                      <div className="flex items-center gap-3 shrink-0">
-                        {e.grand_total != null && (
-                          <span className="text-sm font-semibold text-slate-800 tabular-nums">{inr(e.grand_total)}</span>
-                        )}
-                        {e.has_invoice && (
-                          <span className="text-[11px] font-medium bg-brand-50 text-brand-600 px-2 py-1 rounded-full">Invoiced</span>
-                        )}
-                      </div>
                     </li>
                   ))}
                 </ul>

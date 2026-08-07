@@ -51,6 +51,7 @@ class OrganizationProfile(Base):
     logo_path = Column(String(255), nullable=True)
     signature_path = Column(String(255), nullable=True)
     seal_path = Column(String(255), nullable=True)
+    invoice_terms = Column(Text, default="")
 
 
 class RateCard(Base):

@@ -1,9 +1,12 @@
 import { useNavigate } from 'react-router-dom'
+import { useState } from 'react'
 import Topbar from '../components/Topbar'
 import { logout } from '../api/client'
+import ConfirmModal from '../components/ConfirmModal'
 
 export default function Home() {
   const navigate = useNavigate()
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
 
   const getGreeting = () => {
     const hour = new Date().getHours()
@@ -27,7 +30,7 @@ export default function Home() {
             <GearIcon className="w-5 h-5" />
           </button>
           <button
-            onClick={logout}
+            onClick={() => setShowLogoutConfirm(true)}
             className="w-9 h-9 rounded-full text-slate-400 hover:bg-coral-50 hover:text-coral-500 flex items-center justify-center transition-colors"
             title="Log Out"
           >
@@ -60,6 +63,14 @@ export default function Home() {
           />
         </div>
       </div>
+      <ConfirmModal
+        isOpen={showLogoutConfirm}
+        title="Log Out"
+        message="Are you sure you want to log out of your session?"
+        confirmText="Log Out"
+        onConfirm={logout}
+        onCancel={() => setShowLogoutConfirm(false)}
+      />
     </div>
   )
 }

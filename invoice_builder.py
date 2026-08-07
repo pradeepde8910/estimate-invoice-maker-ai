@@ -41,9 +41,9 @@ body { background-color: #F1F5F9; color: #334155; padding: 40px 12px; font-size:
 .layout-table { width: 100%; border-collapse: collapse; }
 .layout-table td { padding: 0; border: none; vertical-align: top; }
 .header-table { border-bottom: 2px solid #0F172A; padding-bottom: 24px; }
-.logo-container { display: block; margin-bottom: 12px; }
-.brand-logo { max-height: 48px; width: auto; object-fit: contain; display: inline-block; vertical-align: middle; margin-right: 10px; }
-.brand-name { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; color: #0F172A; line-height: 1.1; display: inline-block; vertical-align: middle; }
+.logo-container { display: block; margin-bottom: 16px; }
+.brand-logo { max-height: 64px; width: auto; object-fit: contain; display: block; margin-bottom: 12px; }
+.brand-name { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; color: #0F172A; line-height: 1.2; display: block; }
 .brand-tagline { font-size: 11px; color: #2563EB; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px; }
 .company-address { color: #64748B; font-size: 12px; max-width: 340px; line-height: 1.4; }
 .invoice-title-block { text-align: right; }
@@ -66,9 +66,9 @@ body { background-color: #F1F5F9; color: #334155; padding: 40px 12px; font-size:
 .totals-table td { border: none; padding: 6px 0; font-size: 12px; color: #64748B; }
 .totals-table tr.grand-total td { border-top: 2px solid #0F172A; padding-top: 10px; font-size: 16px; font-weight: 700; color: #0F172A; }
 .footer-section { margin-top: 40px; padding-top: 20px; border-top: 1px solid #E2E8F0; }
-.signature-box { text-align: center; width: 220px; }
-.signature-space { height: 50px; }
-.signature-space img { max-height: 48px; }
+.signature-box { text-align: center; min-width: 220px; }
+.signature-space { min-height: 50px; white-space: nowrap; margin-bottom: 4px; }
+.signature-space img { max-height: 48px; display: inline-block; vertical-align: middle; margin: 0 4px; }
 .signature-title { font-size: 11px; font-weight: 600; color: #64748B; border-top: 1px solid #E2E8F0; padding-top: 4px; }
 .terms-list { font-size: 10px; color: #64748B; line-height: 1.6; padding-left: 14px; }
 .company-legal-footer { margin-top: 24px; text-align: center; font-size: 10px; color: #64748B; background: #F8FAFC; padding: 8px; border-radius: 4px; }
@@ -151,6 +151,7 @@ def build_invoice(
     # ── Branding ──
     logo_url = branding_url(business_profile, "logo")
     signature_url = branding_url(business_profile, "signature")
+    seal_url = branding_url(business_profile, "seal")
     logo_html = (
         f'<img src="{logo_url}" alt="{escape(business_profile.get("name", "Logo"))}" class="brand-logo" onerror="this.style.display=\'none\';" />'
         if logo_url
@@ -160,6 +161,7 @@ def build_invoice(
         f'<div class="brand-tagline">{escape(business_profile["tagline"])}</div>' if business_profile.get("tagline") else ""
     )
     signature_img_html = f'<img src="{signature_url}" alt="Signature" />' if signature_url else ""
+    seal_img_html = f'<img src="{seal_url}" alt="Seal" />' if seal_url else ""
 
     badge_bg, badge_fg = STATUS_COLORS.get(status, STATUS_COLORS["Draft"])
 
@@ -200,6 +202,18 @@ def build_invoice(
     if legal_line or certifications_line:
         legal_footer_html = f'<div class="company-legal-footer">{escape(business_profile.get("name",""))}{" | " + legal_line if legal_line else ""}{certifications_line}</div>'
 
+    terms_html = ""
+    invoice_terms = business_profile.get("invoice_terms", "")
+    if invoice_terms.strip():
+        terms_items = "".join(f"<li>{escape(line.strip())}</li>" for line in invoice_terms.split("\n") if line.strip())
+        terms_html = f"""
+        <div style="margin-top: 24px;">
+            <div class="section-label">Terms &amp; Conditions</div>
+            <ol class="terms-list">
+                {terms_items}
+            </ol>
+        </div>"""
+
     html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -218,7 +232,7 @@ def build_invoice(
             <td style="width: 60%;">
                 <div class="logo-container">
                     {logo_html}
-                    <span class="brand-name">{escape(business_profile.get('name', '').upper())}</span>
+                    <div class="brand-name">{escape(business_profile.get('name', '').upper())}</div>
                 </div>
                 {tagline_html}
                 <div class="company-address">
@@ -282,19 +296,11 @@ def build_invoice(
     <footer class="footer-section">
         <table class="layout-table"><tr><td style="text-align: right;">
             <table style="display: inline-table;"><tr><td class="signature-box">
-                <div class="signature-space">{signature_img_html}</div>
+                <div class="signature-space">{signature_img_html}{seal_img_html}</div>
                 <div class="signature-title">For {escape(business_profile.get('name', '').upper())}<br><small>({escape(business_profile.get('signatory_title', 'Authorized Signatory'))})</small></div>
             </td></tr></table>
         </td></tr></table>
-        <div style="margin-top: 24px;">
-            <div class="section-label">Terms &amp; Conditions</div>
-            <ol class="terms-list">
-                <li>Payment is due strictly within the timeframe stated above.</li>
-                <li>Interest @ 18% p.a. will be levied on overdue balances.</li>
-                <li>All legal matters and disputes are subject to the jurisdiction where {escape(business_profile.get('name', 'the issuer'))} is registered.</li>
-                <li>This is a system-generated document and requires no physical seal if signed digitally.</li>
-            </ol>
-        </div>
+        {terms_html}
         {legal_footer_html}
     </footer>
 </div>

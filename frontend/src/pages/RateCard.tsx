@@ -49,7 +49,7 @@ export default function RateCardPage() {
     <div className="flex-1">
       <BackLink />
       <Topbar title="Rate Card" subtitle="Hourly rates used by the estimation agent for cost calculations." />
-      <div className="p-8 max-w-3xl">
+      <div className="p-6 max-w-3xl">
         <Card
           title="Developer Rates (INR / hour)"
           action={

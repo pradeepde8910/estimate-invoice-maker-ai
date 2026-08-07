@@ -11,7 +11,26 @@ from db import engine, Base, init_db, SessionLocal, User
 def reset_database():
     print("Database Reset Utility")
     print("-" * 30)
-    
+    print(f"Target database: {config.DATABASE_URL}")
+
+    is_sqlite = config.DATABASE_URL.startswith("sqlite")
+    if not is_sqlite and os.environ.get("RESET_DB_CONFIRM") != "yes-i-am-sure":
+        print(
+            "Refusing to run: DATABASE_URL does not look like a local sqlite "
+            "database, which usually means this is pointed at a shared/"
+            "production database. If you really mean to drop all tables "
+            "here, re-run with RESET_DB_CONFIRM=yes-i-am-sure set."
+        )
+        return
+
+    confirmation = input(
+        f"This will PERMANENTLY DELETE ALL DATA in {config.DATABASE_URL}. "
+        "Type 'reset' to continue: "
+    )
+    if confirmation.strip().lower() != "reset":
+        print("Aborted - no changes made.")
+        return
+
     # 1. Drop all tables
     print("Dropping all existing database tables...")
     try:

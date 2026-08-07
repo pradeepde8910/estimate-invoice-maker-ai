@@ -4,7 +4,7 @@ import mermaid from 'mermaid'
 let initialized = false
 function ensureInit() {
   if (initialized) return
-  mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'strict' })
+  mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'strict', suppressErrorRendering: true })
   initialized = true
 }
 
@@ -17,13 +17,21 @@ export default function Mermaid({ chart }: { chart: string }) {
     ensureInit()
     let cancelled = false
     setError(null)
+    const renderId = `mermaid-${id}`
     mermaid
-      .render(`mermaid-${id}`, chart.trim())
+      .render(renderId, chart.trim())
       .then(({ svg }) => {
         if (!cancelled && containerRef.current) containerRef.current.innerHTML = svg
       })
       .catch((e) => {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e))
+      })
+      .finally(() => {
+        // Clean up stranded error SVGs that Mermaid injects into the body on failure
+        const dNode = document.getElementById(`d${renderId}`)
+        if (dNode) dNode.remove()
+        const node = document.getElementById(renderId)
+        if (node) node.remove()
       })
     return () => {
       cancelled = true

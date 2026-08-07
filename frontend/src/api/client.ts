@@ -58,6 +58,11 @@ export async function getJob(jobId: string): Promise<Job> {
   return json(res)
 }
 
+export async function cancelJob(jobId: string): Promise<{ status: string }> {
+  const res = await fetch(`${BASE}/jobs/${jobId}/cancel`, { method: 'POST' })
+  return json(res)
+}
+
 export async function getJobDocument(jobId: string, docType: 'quotation' | 'brd' | 'srs'): Promise<string> {
   const res = await fetch(`${BASE}/jobs/${jobId}/document/${docType}`)
   if (!res.ok) throw new Error(await res.text())
@@ -167,6 +172,13 @@ export async function uploadOrganizationAsset(
   const form = new FormData()
   form.append('file', file)
   const res = await fetch(`${BASE}/organization/${slot}`, { method: 'POST', body: form })
+  return json(res)
+}
+
+export async function deleteOrganizationAsset(
+  slot: 'logo' | 'signature' | 'seal'
+): Promise<{ profile: OrganizationProfile }> {
+  const res = await fetch(`${BASE}/organization/${slot}`, { method: 'DELETE' })
   return json(res)
 }
 
