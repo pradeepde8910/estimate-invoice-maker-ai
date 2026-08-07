@@ -3,6 +3,7 @@ import datetime
 from sqlalchemy import (
     create_engine, Column, String, Float, DateTime, Boolean, ForeignKey, Integer, Text, JSON
 )
+from sqlalchemy import text as sa_text
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 import config
 
@@ -256,7 +257,45 @@ def restore_branding_assets():
         db.close()
 
 
+def _run_migrations():
+    """Safely add any columns that may be missing from existing tables in
+    production PostgreSQL databases (SQLAlchemy create_all only creates missing
+    *tables*, not missing *columns* on already-existing tables)."""
+    is_postgres = not config.DATABASE_URL.startswith("sqlite")
+    with engine.connect() as conn:
+        migrations = [
+            # organization_profiles: branding columns
+            ("organization_profiles", "logo_path",       "VARCHAR(255)"),
+            ("organization_profiles", "signature_path",  "VARCHAR(255)"),
+            ("organization_profiles", "seal_path",       "VARCHAR(255)"),
+            ("organization_profiles", "invoice_terms",   "TEXT"),
+            ("organization_profiles", "bank_name",       "VARCHAR(100)"),
+            ("organization_profiles", "bank_account_number", "VARCHAR(100)"),
+            ("organization_profiles", "bank_ifsc",       "VARCHAR(50)"),
+            ("organization_profiles", "bank_branch",     "VARCHAR(100)"),
+            # branding_assets table columns (new table, handled by create_all)
+        ]
+        for table, col, col_type in migrations:
+            try:
+                if is_postgres:
+                    conn.execute(sa_text(
+                        f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col} {col_type}"
+                    ))
+                else:
+                    # SQLite: check column existence manually
+                    rows = conn.execute(sa_text(f"PRAGMA table_info({table})")).fetchall()
+                    existing_cols = [r[1] for r in rows]
+                    if col not in existing_cols:
+                        conn.execute(sa_text(
+                            f"ALTER TABLE {table} ADD COLUMN {col} {col_type}"
+                        ))
+            except Exception as e:
+                print(f"[migration] WARNING: could not add column {table}.{col}: {e}")
+        conn.commit()
+
+
 def init_db():
     Base.metadata.create_all(bind=engine)
+    _run_migrations()   # ensure all columns exist after schema evolves
     sync_rate_card()
     restore_branding_assets()

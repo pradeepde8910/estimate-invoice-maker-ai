@@ -48,22 +48,25 @@ from utils.html_sanitize import strip_script_vectors
 
 logger = logging.getLogger("pixous.api")
 
-# Eagerly restore branding assets from DB so they exist on disk BEFORE
-# StaticFiles mounts the branding/ directory below (StaticFiles scans the
-# directory at mount time, so the files must already be there).
-from db import restore_branding_assets as _restore_branding_assets
+# Run DB migrations + restore branding assets eagerly so they complete
+# BEFORE StaticFiles mounts the branding/ directory and before the app
+# serves any requests (startup event fires after the server is already up).
+from db import restore_branding_assets as _restore_branding_assets, _run_migrations as _run_db_migrations
+try:
+    _run_db_migrations()
+except Exception as _e:
+    print(f"[startup] Pre-app migration warning: {_e}")
 try:
     _restore_branding_assets()
 except Exception:
-    pass  # Table may not exist on first deploy; init_db() below will create it.
+    pass  # Table may not exist yet on very first deploy
 
 app = FastAPI(title="Pixous Technologies API")
 
 @app.on_event("startup")
 def startup_event():
     init_db()
-    # Re-restore after DB tables are guaranteed to exist, in case the
-    # eager call above was a no-op due to a missing table on first deploy.
+    # Re-run after DB tables are guaranteed to exist
     try:
         _restore_branding_assets()
     except Exception:
@@ -720,7 +723,23 @@ async def upload_organization_asset(slot: str, request: Request, file: UploadFil
         profile = organization.save_branding_file(slot, file.filename or f"{slot}.png", content)
     except organization.InvalidBrandingAssetError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Upload failed: {e}")
     return {"profile": profile}
+
+
+@app.get("/api/debug/org-profile")
+async def debug_org_profile():
+    """Diagnostic endpoint — shows raw DB state of organization_profiles table."""
+    try:
+        from sqlalchemy import text as _text
+        with engine.connect() as conn:
+            rows = conn.execute(_text("SELECT * FROM organization_profiles")).mappings().all()
+            return {"rows": [dict(r) for r in rows], "count": len(rows)}
+    except Exception as e:
+        return {"error": str(e)}
 
 
 @app.delete("/api/organization/{slot}")

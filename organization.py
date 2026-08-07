@@ -176,7 +176,8 @@ def save_branding_file(slot: str, filename: str, content: bytes) -> dict:
         print(f"[organization] ERROR saving profile path for slot '{slot}':")
         traceback.print_exc()
         db.rollback()
-        result = dict(DEFAULT_PROFILE)
+        db.close()
+        raise  # Re-raise so the API endpoint can return the real error
     finally:
         db.close()
 
