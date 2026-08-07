@@ -156,6 +156,10 @@ async def login_endpoint(payload: LoginRequest, request: Request):
     finally:
         db.close()
 
+@app.get("/api/auth/validate")
+async def validate_token():
+    return {"status": "valid"}
+
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
     path = request.url.path

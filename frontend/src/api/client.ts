@@ -241,3 +241,11 @@ export function logout() {
   window.location.href = '/login'
 }
 
+export async function validateSession(): Promise<boolean> {
+  try {
+    const res = await fetch(`${BASE}/auth/validate`)
+    return res.ok
+  } catch {
+    return false
+  }
+}
