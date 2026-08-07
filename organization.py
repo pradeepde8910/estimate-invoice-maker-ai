@@ -89,6 +89,7 @@ SLOT_KEYS = ["logo_path", "signature_path", "seal_path"]
 
 
 def load_profile() -> dict:
+    import traceback
     from db import SessionLocal, OrganizationProfile
     db = SessionLocal()
     try:
@@ -106,12 +107,15 @@ def load_profile() -> dict:
             result[key] = getattr(profile_row, key, DEFAULT_PROFILE[key])
         return result
     except Exception:
+        print("[organization] ERROR in load_profile:")
+        traceback.print_exc()
         return dict(DEFAULT_PROFILE)
     finally:
         db.close()
 
 
 def save_profile(fields: dict) -> dict:
+    import traceback
     from db import SessionLocal, OrganizationProfile
     db = SessionLocal()
     try:
@@ -130,6 +134,9 @@ def save_profile(fields: dict) -> dict:
             result[key] = getattr(profile_row, key, DEFAULT_PROFILE[key])
         return result
     except Exception:
+        print("[organization] ERROR in save_profile:")
+        traceback.print_exc()
+        db.rollback()
         return dict(DEFAULT_PROFILE)
     finally:
         db.close()
@@ -138,6 +145,7 @@ def save_profile(fields: dict) -> dict:
 def save_branding_file(slot: str, filename: str, content: bytes) -> dict:
     """slot: 'logo' | 'signature' | 'seal'"""
     import base64
+    import traceback
     ext = Path(filename).suffix.lower() or ".png"
     # Validate BEFORE touching disk: an invalid/malicious upload must never
     # delete the existing valid asset for this slot.
@@ -149,17 +157,10 @@ def save_branding_file(slot: str, filename: str, content: bytes) -> dict:
         existing.unlink(missing_ok=True)
     dest.write_bytes(content)
 
-    from db import SessionLocal, OrganizationProfile, BrandingAsset
+    from db import SessionLocal, OrganizationProfile
     db = SessionLocal()
     try:
-        # Save to BrandingAsset table
-        asset = db.query(BrandingAsset).filter(BrandingAsset.slot == slot).first()
-        if not asset:
-            asset = BrandingAsset(slot=slot)
-            db.add(asset)
-        asset.file_name = f"{slot}{ext}"
-        asset.data = base64.b64encode(content).decode("utf-8")
-        
+        # Primary: update the OrganizationProfile path reference
         profile_row = db.query(OrganizationProfile).first()
         if not profile_row:
             profile_row = OrganizationProfile(**DEFAULT_PROFILE)
@@ -167,15 +168,41 @@ def save_branding_file(slot: str, filename: str, content: bytes) -> dict:
         setattr(profile_row, f"{slot}_path", dest.name)
         db.commit()
         db.refresh(profile_row)
-        
+
         result = {}
         for key in DEFAULT_PROFILE.keys():
             result[key] = getattr(profile_row, key, DEFAULT_PROFILE[key])
-        return result
     except Exception:
-        return dict(DEFAULT_PROFILE)
+        print(f"[organization] ERROR saving profile path for slot '{slot}':")
+        traceback.print_exc()
+        db.rollback()
+        result = dict(DEFAULT_PROFILE)
     finally:
         db.close()
+
+    # Secondary (best-effort): back up raw bytes to BrandingAsset table so
+    # assets survive ephemeral-filesystem redeploys. If the table doesn't
+    # exist yet (first deploy before migration runs) this silently skips.
+    try:
+        from db import SessionLocal as _SL, BrandingAsset
+        _db = _SL()
+        try:
+            asset = _db.query(BrandingAsset).filter(BrandingAsset.slot == slot).first()
+            if not asset:
+                asset = BrandingAsset(slot=slot)
+                _db.add(asset)
+            asset.file_name = f"{slot}{ext}"
+            asset.data = base64.b64encode(content).decode("utf-8")
+            _db.commit()
+        except Exception:
+            _db.rollback()
+            print(f"[organization] WARNING: Could not backup branding asset '{slot}' to DB (table may not exist yet). Asset is saved to disk.")
+        finally:
+            _db.close()
+    except Exception:
+        pass  # Non-critical — disk file is already written above
+
+    return result
 
 
 def branding_url(profile: dict, slot: str) -> str | None:

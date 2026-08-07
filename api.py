@@ -48,11 +48,26 @@ from utils.html_sanitize import strip_script_vectors
 
 logger = logging.getLogger("pixous.api")
 
+# Eagerly restore branding assets from DB so they exist on disk BEFORE
+# StaticFiles mounts the branding/ directory below (StaticFiles scans the
+# directory at mount time, so the files must already be there).
+from db import restore_branding_assets as _restore_branding_assets
+try:
+    _restore_branding_assets()
+except Exception:
+    pass  # Table may not exist on first deploy; init_db() below will create it.
+
 app = FastAPI(title="Pixous Technologies API")
 
 @app.on_event("startup")
 def startup_event():
     init_db()
+    # Re-restore after DB tables are guaranteed to exist, in case the
+    # eager call above was a no-op due to a missing table on first deploy.
+    try:
+        _restore_branding_assets()
+    except Exception:
+        pass
 
 # --- Token helpers for authentication ---
 def create_token(username: str) -> str:
@@ -163,15 +178,16 @@ async def validate_token():
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
     path = request.url.path
-    # Exclude login, static branding files, and preflight requests (OPTIONS)
-    if path.startswith("/api") and path != "/api/auth/login" and request.method != "OPTIONS":
+    # Public endpoints that don't require a Bearer token
+    PUBLIC_PATHS = {"/api/auth/login", "/api/auth/validate"}
+    if path.startswith("/api") and path not in PUBLIC_PATHS and request.method != "OPTIONS":
         auth_header = request.headers.get("Authorization")
         if not auth_header or not auth_header.startswith("Bearer "):
             return JSONResponse(status_code=401, content={"detail": "Unauthorized. Please log in."})
         token = auth_header.split(" ")[1]
         if not verify_token(token):
             return JSONResponse(status_code=401, content={"detail": "Session expired or invalid token."})
-            
+
     response = await call_next(request)
     return response
 
