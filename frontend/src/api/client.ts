@@ -4,14 +4,14 @@ const BASE = '/api'
 
 const originalFetch = window.fetch
 async function authFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-  const token = localStorage.getItem('pixous_auth_token')
+  const token = sessionStorage.getItem('pixous_auth_token')
   const headers = new Headers(init?.headers)
   if (token) {
     headers.set('Authorization', `Bearer ${token}`)
   }
   const res = await originalFetch(input, { ...init, headers })
   if (res.status === 401) {
-    localStorage.removeItem('pixous_auth_token')
+    sessionStorage.removeItem('pixous_auth_token')
     if (!window.location.pathname.endsWith('/login')) {
       window.location.href = '/login'
     }
@@ -232,12 +232,12 @@ export async function login(password: string, username: string = 'admin'): Promi
     throw new ApiError(res.status, text || `Login failed (${res.status})`)
   }
   const data = await res.json()
-  localStorage.setItem('pixous_auth_token', data.token)
+  sessionStorage.setItem('pixous_auth_token', data.token)
   return data
 }
 
 export function logout() {
-  localStorage.removeItem('pixous_auth_token')
+  sessionStorage.removeItem('pixous_auth_token')
   window.location.href = '/login'
 }
 

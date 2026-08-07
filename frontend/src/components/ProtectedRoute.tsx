@@ -8,7 +8,7 @@ export default function ProtectedRoute() {
 
   useEffect(() => {
     const checkAuth = async () => {
-      const token = localStorage.getItem('pixous_auth_token')
+      const token = sessionStorage.getItem('pixous_auth_token')
       if (!token) {
         setIsAuthenticated(false)
         setIsValidating(false)
@@ -17,7 +17,7 @@ export default function ProtectedRoute() {
 
       const valid = await validateSession()
       if (!valid) {
-        localStorage.removeItem('pixous_auth_token')
+        sessionStorage.removeItem('pixous_auth_token')
       }
       setIsAuthenticated(valid)
       setIsValidating(false)
