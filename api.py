@@ -680,22 +680,33 @@ async def get_organization():
 
 
 class OrganizationUpdate(BaseModel):
-    name: str = "Your Company Name"
-    tagline: str = ""
-    address: str = ""
-    email: str = ""
-    phone: str = ""
-    website: str = ""
-    gstin: str = ""
-    registration_number: str = ""
-    certifications: str = ""
-    signatory_name: str = ""
-    signatory_title: str = "Authorized Signatory"
-    bank_name: str = ""
-    bank_account_number: str = ""
-    bank_ifsc: str = ""
-    bank_branch: str = ""
-    invoice_terms: str = ""
+    name: Optional[str] = "Your Company Name"
+    tagline: Optional[str] = ""
+    address: Optional[str] = ""
+    email: Optional[str] = ""
+    phone: Optional[str] = ""
+    website: Optional[str] = ""
+    gstin: Optional[str] = ""
+    registration_number: Optional[str] = ""
+    certifications: Optional[str] = ""
+    signatory_name: Optional[str] = ""
+    signatory_title: Optional[str] = "Authorized Signatory"
+    bank_name: Optional[str] = ""
+    bank_account_number: Optional[str] = ""
+    bank_ifsc: Optional[str] = ""
+    bank_branch: Optional[str] = ""
+    invoice_terms: Optional[str] = ""
+
+    @field_validator(
+        'name', 'tagline', 'address', 'email', 'phone', 'website',
+        'gstin', 'registration_number', 'certifications', 'signatory_name',
+        'signatory_title', 'bank_name', 'bank_account_number', 'bank_ifsc',
+        'bank_branch', 'invoice_terms',
+        mode='before'
+    )
+    @classmethod
+    def coerce_none_to_str(cls, v):
+        return v if v is not None else ""
 
 
 @app.put("/api/organization")
