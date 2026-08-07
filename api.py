@@ -178,11 +178,21 @@ async def login_endpoint(payload: LoginRequest, request: Request):
 async def validate_token():
     return {"status": "valid"}
 
+@app.get("/api/auth/branding")
+async def public_branding():
+    """Returns the logo/branding paths without authentication so the
+    Login page can display the company logo before the user signs in."""
+    profile = organization.load_profile()
+    return {
+        "logo_path": profile.get("logo_path"),
+        "name": profile.get("name", "Pixous Technologies"),
+    }
+
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
     path = request.url.path
     # Public endpoints that don't require a Bearer token
-    PUBLIC_PATHS = {"/api/auth/login", "/api/auth/validate"}
+    PUBLIC_PATHS = {"/api/auth/login", "/api/auth/validate", "/api/auth/branding"}
     if path.startswith("/api") and path not in PUBLIC_PATHS and request.method != "OPTIONS":
         auth_header = request.headers.get("Authorization")
         if not auth_header or not auth_header.startswith("Bearer "):

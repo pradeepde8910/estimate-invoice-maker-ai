@@ -1,43 +1,79 @@
-import { useEffect, useState } from 'react'
-import { getOrganization } from '../api/client'
+/**
+ * Shared logo hook.
+ *
+ * Uses a two-tier strategy:
+ *  1. PUBLIC  — /api/auth/branding  (no token needed → works on Login page)
+ *  2. PRIVATE — /api/organization   (full profile, used when already logged in)
+ *
+ * The public endpoint is tried first so the logo always appears on the
+ * login screen without needing authentication.
+ */
 
 let _cached: string | null | undefined = undefined // undefined = not fetched yet
 const _listeners = new Set<(url: string | null) => void>()
+let _fetching = false
 
 function _notify(url: string | null) {
   _cached = url
   _listeners.forEach((fn) => fn(url))
 }
 
-/**
- * Returns the live logo URL (e.g. "/branding/logo.jpg") from the
- * organization profile.  Returns null if no logo is uploaded yet.
- * Results are cached in memory so all components share one network call.
- */
+function _buildUrl(logoPath: string | null | undefined): string | null {
+  return logoPath ? `/branding/${logoPath}?t=${Date.now()}` : null
+}
+
+async function _fetchLogo() {
+  if (_fetching) return
+  _fetching = true
+  try {
+    // Try the public endpoint first (works before login)
+    const res = await fetch('/api/auth/branding')
+    if (res.ok) {
+      const data = await res.json()
+      _notify(_buildUrl(data.logo_path))
+      return
+    }
+  } catch {
+    // fall through
+  }
+  // Fallback: try the authenticated full-profile endpoint
+  try {
+    const token = sessionStorage.getItem('pixous_auth_token')
+    if (token) {
+      const res = await fetch('/api/organization', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (res.ok) {
+        const data = await res.json()
+        _notify(_buildUrl(data.profile?.logo_path))
+        return
+      }
+    }
+  } catch {
+    // ignore
+  }
+  _notify(null)
+}
+
 export function useLogo(): string | null {
+  // Lazy import React to keep this file framework-agnostic at module level
+  const { useState, useEffect } = require('react') as typeof import('react')
+
   const [logoUrl, setLogoUrl] = useState<string | null>(
     _cached !== undefined ? _cached : null
   )
 
   useEffect(() => {
     if (_cached !== undefined) {
-      // Already fetched — use the cache immediately
       setLogoUrl(_cached)
       return
     }
 
-    // Subscribe so we get notified when the fetch completes
     _listeners.add(setLogoUrl)
 
-    // Only the first caller actually fetches
-    if (_listeners.size === 1) {
-      getOrganization()
-        .then(({ profile }) => {
-          const path = profile.logo_path
-          const url = path ? `/branding/${path}?t=${Date.now()}` : null
-          _notify(url)
-        })
-        .catch(() => _notify(null))
+    // First subscriber triggers the fetch
+    if (!_fetching) {
+      _fetchLogo()
     }
 
     return () => {
@@ -48,9 +84,9 @@ export function useLogo(): string | null {
   return logoUrl
 }
 
-/** Call this after a successful logo upload to refresh every component. */
+/** Call after a successful logo upload/remove to refresh all components instantly. */
 export function refreshLogo(logoPath: string | null) {
-  const url = logoPath ? `/branding/${logoPath}?t=${Date.now()}` : null
-  _cached = undefined // reset cache so next useLogo call re-fetches if needed
-  _notify(url)
+  _fetching = false
+  _cached = undefined
+  _notify(_buildUrl(logoPath))
 }
