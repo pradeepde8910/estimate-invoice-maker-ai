@@ -181,10 +181,18 @@ async def validate_token():
 @app.get("/api/auth/branding")
 async def public_branding():
     """Returns the logo/branding paths without authentication so the
-    Login page can display the company logo before the user signs in."""
+    Login page can display the company logo before the user signs in.
+    Falls back to the default Pixous logo when no custom logo is uploaded."""
     profile = organization.load_profile()
+    logo_path = profile.get("logo_path")
+    # If no custom logo is set, use the bundled default so the login page
+    # never falls back to the plain-text placeholder.
+    if not logo_path:
+        default_logo = organization.BRANDING_DIR / "logo_default.png"
+        if default_logo.exists():
+            logo_path = "logo_default.png"
     return {
-        "logo_path": profile.get("logo_path"),
+        "logo_path": logo_path,
         "name": profile.get("name", "Pixous Technologies"),
     }
 
