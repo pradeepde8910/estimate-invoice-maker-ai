@@ -1,3 +1,5 @@
+import { useState, useEffect } from 'react'
+
 /**
  * Shared logo hook.
  *
@@ -56,8 +58,6 @@ async function _fetchLogo() {
 }
 
 export function useLogo(): string | null {
-  // Lazy import React to keep this file framework-agnostic at module level
-  const { useState, useEffect } = require('react') as typeof import('react')
 
   const [logoUrl, setLogoUrl] = useState<string | null>(
     _cached !== undefined ? _cached : null
