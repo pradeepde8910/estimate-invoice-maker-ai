@@ -55,6 +55,19 @@ export default function RateCardPage() {
           action={
             <div className="flex items-center gap-3">
               {saved && <span className="text-xs text-brand-600 font-medium">Saved ✓</span>}
+              {dirty && (
+                <button
+                  disabled={saving}
+                  onClick={() => {
+                    if (rates) setDraft(structuredClone(rates))
+                    setSaved(false)
+                    setError(null)
+                  }}
+                  className="text-sm font-medium text-slate-500 hover:text-slate-800 disabled:text-slate-300"
+                >
+                  Discard
+                </button>
+              )}
               <button
                 disabled={!dirty || saving}
                 onClick={save}

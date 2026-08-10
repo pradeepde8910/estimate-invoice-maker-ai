@@ -34,13 +34,7 @@ export default function EstimationList() {
     <div className="flex-1">
       <Topbar title="Estimations" subtitle="Every estimation, grouped by client." />
       <div className="p-8 space-y-6">
-        <div className="flex items-center justify-between">
-          <button
-            onClick={() => navigate('/estimation/new')}
-            className="text-sm font-medium bg-brand-600 hover:bg-brand-700 text-white px-5 py-2.5 rounded-full"
-          >
-            + New Estimation
-          </button>
+        <div className="flex items-center justify-end">
           {clients && clients.length > 0 && (
             <input
               value={search}
