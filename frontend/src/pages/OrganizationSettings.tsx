@@ -33,8 +33,10 @@ const BANK_FIELD_ROWS: { key: keyof OrganizationProfile; label: string }[] = [
 
 export default function OrganizationSettings() {
   const [profile, setProfile] = useState<OrganizationProfile | null>(null)
+  const [savedProfile, setSavedProfile] = useState<OrganizationProfile | null>(null)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [isDirty, setIsDirty] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [bankExpanded, setBankExpanded] = useState(false)
   const [removeConfirm, setRemoveConfirm] = useState<AssetSlotKey | null>(null)
@@ -43,6 +45,7 @@ export default function OrganizationSettings() {
     getOrganization()
       .then((r) => {
         setProfile(r.profile)
+        setSavedProfile(r.profile)
         // Auto-expand if bank details were already filled in, so existing
         // data isn't hidden behind a collapsed section by surprise.
         if (BANK_FIELD_ROWS.some((f) => (r.profile as any)[f.key])) {
@@ -59,13 +62,24 @@ export default function OrganizationSettings() {
     try {
       const { logo_path, signature_path, seal_path, ...fields } = profile
       const r = await updateOrganization(fields)
-      setProfile({ ...r.profile, logo_path, signature_path, seal_path })
+      const updated = { ...r.profile, logo_path, signature_path, seal_path }
+      setProfile(updated)
+      setSavedProfile(updated)
       setSaved(true)
+      setIsDirty(false)
     } catch (e: any) {
       setError(e.message)
     } finally {
       setSaving(false)
     }
+  }
+
+  function discard() {
+    if (!savedProfile) return
+    setProfile(savedProfile)
+    setSaved(false)
+    setIsDirty(false)
+    setError(null)
   }
 
   async function handleAssetUpload(slot: AssetSlotKey, file: File) {
@@ -108,7 +122,15 @@ export default function OrganizationSettings() {
               title="Company Details"
               action={
                 <div className="flex items-center gap-3">
-                  {saved && <span className="text-xs text-brand-600 font-medium">Saved ✓</span>}
+                  {saved && !isDirty && <span className="text-xs text-brand-600 font-medium">Saved ✓</span>}
+                  {isDirty && (
+                    <button
+                      onClick={discard}
+                      className="text-sm font-medium text-slate-500 hover:text-slate-700 px-5 py-2 rounded-full border border-slate-200 hover:border-slate-300 transition-colors"
+                    >
+                      Discard
+                    </button>
+                  )}
                   <button
                     disabled={saving}
                     onClick={save}
@@ -131,6 +153,7 @@ export default function OrganizationSettings() {
                         onChange={(e) => {
                           setProfile({ ...profile, [f.key]: e.target.value })
                           setSaved(false)
+                          setIsDirty(true)
                         }}
                         className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300 resize-none"
                       />
@@ -141,6 +164,7 @@ export default function OrganizationSettings() {
                         onChange={(e) => {
                           setProfile({ ...profile, [f.key]: e.target.value })
                           setSaved(false)
+                          setIsDirty(true)
                         }}
                         className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
                       />
@@ -171,6 +195,7 @@ export default function OrganizationSettings() {
                         onChange={(e) => {
                           setProfile({ ...profile, [f.key]: e.target.value })
                           setSaved(false)
+                          setIsDirty(true)
                         }}
                         className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
                       />
