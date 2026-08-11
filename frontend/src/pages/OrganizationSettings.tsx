@@ -65,6 +65,12 @@ function validateField(key: keyof OrganizationProfile, value: string, required?:
   if (key === 'email' && !EMAIL_RE.test(value)) return 'Enter a valid email address'
   if (key === 'phone' && !PHONE_RE.test(value)) return 'Enter a valid 10-digit mobile number'
   if (key === 'gstin' && !GSTIN_RE.test(value.toUpperCase())) return 'Enter a valid GSTIN, e.g. 22AAAAA0000A1Z5'
+  
+  if (key === 'invoice_terms') {
+    const wordCount = value.trim().split(/\s+/).filter((w) => w.length > 0).length
+    if (wordCount > 100) return `Terms cannot exceed 100 words (currently ${wordCount})`
+  }
+
   return null
 }
 
