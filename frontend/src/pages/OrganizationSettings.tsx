@@ -33,7 +33,7 @@ const FIELD_ROWS: {
   { key: 'certifications', label: 'Certifications', placeholder: 'e.g. ISO 9001:2015 · CMMI Level 3', span: true, multiline: true, maxLength: 500 },
   { key: 'signatory_name', label: 'Authorized Signatory Name', placeholder: 'e.g. Jane Doe', maxLength: 100 },
   { key: 'signatory_title', label: 'Signatory Title', placeholder: 'e.g. Authorized Signatory', maxLength: 100 },
-  { key: 'invoice_terms', label: 'Invoice Terms & Conditions', placeholder: 'Enter terms, one per line', span: true, multiline: true, maxLength: 2000 },
+  { key: 'invoice_terms', label: 'Invoice Terms & Conditions (Max 100 words)', placeholder: 'Enter terms, one per line', span: true, multiline: true, maxLength: 2000 },
 ]
 
 const BANK_FIELD_ROWS: { key: keyof OrganizationProfile; label: string; placeholder?: string; maxLength?: number }[] = [
