@@ -65,7 +65,7 @@ function ManualInvoiceForm({ onCreated }: { onCreated: (baseName: string) => voi
   const [error, setError] = useState<string | null>(null)
 
   const total = rows.reduce((sum, r) => sum + r.quantity * r.rate, 0)
-  const canSubmit = clientName.trim() && rows.some((r) => r.description.trim() && r.quantity > 0)
+  const canSubmit = clientName.trim() && projectName.trim() && rows.some((r) => r.description.trim() && r.quantity > 0)
 
   function updateRow(i: number, patch: Partial<LineItemRow>) {
     setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, ...patch } : r)))
@@ -85,7 +85,7 @@ function ManualInvoiceForm({ onCreated }: { onCreated: (baseName: string) => voi
     try {
       const { base_name } = await createManualEstimation({
         client_name: clientName.trim(),
-        project_name: projectName.trim() || 'Manual Invoice',
+        project_name: projectName.trim(),
         line_items: rows
           .filter((r) => r.description.trim() && r.quantity > 0)
           .map((r) => ({ description: r.description.trim(), quantity: r.quantity, rate: r.rate })),
@@ -101,7 +101,7 @@ function ManualInvoiceForm({ onCreated }: { onCreated: (baseName: string) => voi
     <Card title="Manual Invoice">
       <div className="grid grid-cols-2 gap-4 mb-5">
         <div>
-          <label className="text-sm font-medium text-slate-600">Client Name</label>
+          <label className="text-sm font-medium text-slate-600">Client Name <span className="text-coral-500">*</span></label>
           <input
             value={clientName}
             onChange={(e) => setClientName(e.target.value)}
@@ -110,7 +110,7 @@ function ManualInvoiceForm({ onCreated }: { onCreated: (baseName: string) => voi
           />
         </div>
         <div>
-          <label className="text-sm font-medium text-slate-600">Project / Description</label>
+          <label className="text-sm font-medium text-slate-600">Project / Description <span className="text-coral-500">*</span></label>
           <input
             value={projectName}
             onChange={(e) => setProjectName(e.target.value)}
@@ -121,10 +121,10 @@ function ManualInvoiceForm({ onCreated }: { onCreated: (baseName: string) => voi
       </div>
 
       <div className="mt-4">
-        <label className="text-sm font-medium text-slate-600 block mb-3">Line Items</label>
+        <label className="text-sm font-medium text-slate-600 block mb-3">Line Items <span className="text-coral-500">*</span></label>
         <div className="grid grid-cols-12 gap-2 items-center mb-2 px-1">
-          <div className="col-span-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Item / Description</div>
-          <div className="col-span-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Qty / Hours</div>
+          <div className="col-span-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Item / Description <span className="text-coral-500">*</span></div>
+          <div className="col-span-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Qty / Hours <span className="text-coral-500">*</span></div>
           <div className="col-span-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Rate (₹)</div>
           <div className="col-span-2 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right pr-8">Amount</div>
         </div>
