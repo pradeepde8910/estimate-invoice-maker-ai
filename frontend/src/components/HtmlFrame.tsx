@@ -17,9 +17,106 @@ const HtmlFrame = forwardRef<HtmlFrameHandle, { html: string; editable?: boolean
     const iframeRef = useRef<HTMLIFrameElement>(null)
     const [height, setHeight] = useState(600)
 
+    const parseNumber = (str: string | null | undefined) => {
+      if (!str) return 0
+      const val = parseFloat(str.replace(/[^0-9.-]+/g, ''))
+      return isNaN(val) ? 0 : val
+    }
+
+    const formatINR = (num: number) => {
+      return '₹' + num.toLocaleString('en-IN', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })
+    }
+
+    const handleInvoiceInput = (e: Event) => {
+      const doc = iframeRef.current?.contentDocument
+      if (!doc) return
+      
+      const target = e.target as HTMLElement
+      const rows = doc.querySelectorAll('.items-table tbody tr')
+      let subtotal = 0
+      let totalGst = 0
+
+      rows.forEach((row) => {
+        const cells = row.querySelectorAll('td')
+        if (cells.length === 6) {
+          const qtyCell = cells[2] as HTMLElement
+          const rateCell = cells[3] as HTMLElement
+          const gstCell = cells[4] as HTMLElement
+          const amountCell = cells[5] as HTMLElement
+          
+          const qtyText = qtyCell.innerText || qtyCell.textContent
+          const isExtra = qtyText?.trim() === '—'
+          
+          let amount = 0
+          if (!isExtra) {
+            const qty = parseNumber(qtyText)
+            const rate = parseNumber(rateCell.innerText || rateCell.textContent)
+            amount = qty * rate
+            
+            const expectedText = formatINR(amount)
+            if (amountCell !== target && (amountCell.innerText || amountCell.textContent) !== expectedText) {
+              amountCell.innerText = expectedText
+            }
+          } else {
+             amount = parseNumber(amountCell.innerText || amountCell.textContent)
+          }
+
+          const gstRate = parseNumber(gstCell.innerText || gstCell.textContent)
+          const gstAmount = amount * (gstRate / 100)
+          
+          subtotal += amount
+          totalGst += gstAmount
+        }
+      })
+
+      const totalRows = doc.querySelectorAll('.totals-table tr')
+      if (totalRows.length >= 3) {
+        const subtotalCell = totalRows[0].querySelector('.text-right') as HTMLElement
+        const gstCell = totalRows[1].querySelector('.text-right') as HTMLElement
+        const grandCell = totalRows[2].querySelector('.text-right') as HTMLElement
+        
+        const expectedSubtotal = formatINR(subtotal)
+        const expectedGst = formatINR(totalGst)
+        const expectedGrand = formatINR(subtotal + totalGst)
+        
+        if (subtotalCell && subtotalCell !== target && subtotalCell.innerText !== expectedSubtotal) subtotalCell.innerText = expectedSubtotal
+        if (gstCell && gstCell !== target && gstCell.innerText !== expectedGst) gstCell.innerText = expectedGst
+        if (grandCell && grandCell !== target && grandCell.innerText !== expectedGrand) grandCell.innerText = expectedGrand
+      }
+    }
+
     function applyEditable() {
       const doc = iframeRef.current?.contentDocument
-      if (doc) doc.designMode = editable ? 'on' : 'off'
+      if (!doc) return
+      
+      const editableSelectors = [
+        '.items-table tbody td',
+        '.meta-table td.dd',
+        '.totals-table td:not(:first-child)', // Allow editing amounts, not labels 'Subtotal' etc. Actually, let's just make all totals td editable for flexibility
+        '.totals-table td',
+        '.client-name',
+        '.company-address',
+        '.invoice-title',
+        '.badge',
+        '.signature-title'
+      ]
+
+      if (editable) {
+        doc.querySelectorAll(editableSelectors.join(', ')).forEach((el) => {
+          const e = el as HTMLElement
+          e.contentEditable = 'true'
+        })
+        doc.addEventListener('input', handleInvoiceInput)
+      } else {
+        doc.querySelectorAll('[contenteditable]').forEach((el) => {
+          const e = el as HTMLElement
+          e.removeAttribute('contenteditable')
+        })
+        doc.removeEventListener('input', handleInvoiceInput)
+      }
     }
 
     function handleLoad() {
@@ -38,7 +135,13 @@ const HtmlFrame = forwardRef<HtmlFrameHandle, { html: string; editable?: boolean
       getHtml: () => {
         const doc = iframeRef.current?.contentDocument
         if (!doc?.documentElement) return html
-        return `<!DOCTYPE html>\n${doc.documentElement.outerHTML}`
+        
+        const rootClone = doc.documentElement.cloneNode(true) as HTMLElement
+        rootClone.querySelectorAll('[contenteditable]').forEach(el => {
+          el.removeAttribute('contenteditable')
+        })
+        
+        return `<!DOCTYPE html>\n${rootClone.outerHTML}`
       },
     }))
 

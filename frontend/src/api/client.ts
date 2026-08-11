@@ -92,6 +92,28 @@ export async function createManualEstimation(payload: {
   return json(res)
 }
 
+export async function patchEstimation(
+  baseName: string,
+  payload: { project_name?: string; timeline_weeks?: number; grand_total?: number; version: number }
+): Promise<{ id: string; project_name: string; timeline_weeks: number; grand_total: number; version: number; updated_at: string }> {
+  const res = await fetch(`${BASE}/estimations/${encodeURIComponent(baseName)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return json(res)
+}
+
+export async function deleteEstimation(baseName: string): Promise<{ status: string; message: string }> {
+  const res = await fetch(`${BASE}/estimations/${encodeURIComponent(baseName)}`, { method: 'DELETE' })
+  return json(res)
+}
+
+export async function deleteInvoice(invoiceNumber: string): Promise<{ status: string }> {
+  const res = await fetch(`${BASE}/invoices/${encodeURIComponent(invoiceNumber)}`, { method: 'DELETE' })
+  return json(res)
+}
+
 export async function getEstimationData(baseName: string): Promise<any> {
   const res = await fetch(`${BASE}/documents/${encodeURIComponent(baseName)}/data`)
   return json(res)
@@ -182,6 +204,13 @@ export async function deleteOrganizationAsset(
   return json(res)
 }
 
+export async function applyBrandingHistory(): Promise<{ status: string }> {
+  const res = await fetch(`${BASE}/organization/apply-branding-history`, { method: 'POST' })
+  return json(res)
+}
+
+
+
 export async function generateInvoice(
   baseName: string,
   opts: { tax_percentage: number; due_days: number }
@@ -249,3 +278,5 @@ export async function validateSession(): Promise<boolean> {
     return false
   }
 }
+
+

@@ -35,7 +35,7 @@ STATUS_COLORS = {
 
 # primary=#0F172A accent=#2563EB text=#334155 muted=#64748B border=#E2E8F0 bg-light=#F8FAFC
 CSS = """
-* { box-sizing: border-box; margin: 0; padding: 0; font-family: "Google Sans Flex", "Google Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+* { box-sizing: border-box; margin: 0; padding: 0; font-family: "Google Sans Flex", "Google Sans", "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif; }
 body { background-color: #F1F5F9; color: #334155; padding: 40px 12px; font-size: 13px; line-height: 1.5; }
 .invoice-card { max-width: 800px; margin: 0 auto; background: #FFFFFF; padding: 48px; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
 .layout-table { width: 100%; border-collapse: collapse; }
@@ -229,7 +229,7 @@ def build_invoice(
 <div class="invoice-card">
     <header class="header-table">
         <table class="layout-table"><tr>
-            <td style="width: 60%;">
+            <td width="60%">
                 <div class="logo-container">
                     {logo_html}
                     <div class="brand-name">{escape(business_profile.get('name', '').upper())}</div>
@@ -241,22 +241,22 @@ def build_invoice(
                     {escape(business_profile.get('website', ''))}
                 </div>
             </td>
-            <td class="invoice-title-block" style="width: 40%;">
+            <td class="invoice-title-block" width="40%">
                 <div class="invoice-title">Tax Invoice</div>
                 <div class="badge" style="background:{badge_bg};color:{badge_fg};">{escape(status)}</div>
-                <div style="margin-top: 12px; font-size: 12px; font-weight: 600; color: #0F172A;"># {escape(invoice_number)}</div>
+                <div style="margin-top: 12px; font-size: 12px; font-weight: 600; color: #0F172A;">{escape(invoice_number)}</div>
             </td>
         </tr></table>
     </header>
 
     <section style="margin: 28px 0;">
         <table class="layout-table"><tr>
-            <td style="width: 50%; padding-right: 16px;">
+            <td width="50%" style="padding-right: 16px;">
                 <div class="section-label">Billed To</div>
                 <div class="client-name">{escape(client_name)}</div>
                 {client_meta_html}
             </td>
-            <td style="width: 50%; padding-left: 16px;">
+            <td width="50%" style="padding-left: 16px;">
                 <div class="section-label">Invoice Details</div>
                 {invoice_meta_html}
             </td>
@@ -267,12 +267,12 @@ def build_invoice(
         <table class="items-table">
             <thead>
                 <tr>
-                    <th style="width: 5%;">#</th>
-                    <th style="width: 45%;">Item &amp; Description</th>
-                    <th class="text-center" style="width: 10%;">Qty</th>
-                    <th class="text-right" style="width: 15%;">Unit Rate</th>
-                    <th class="text-center" style="width: 10%;">GST</th>
-                    <th class="text-right" style="width: 15%;">Amount</th>
+                    <th width="5%">#</th>
+                    <th width="45%">Item &amp; Description</th>
+                    <th class="text-center" width="10%">Qty</th>
+                    <th class="text-right" width="15%">Unit Rate</th>
+                    <th class="text-center" width="10%">GST</th>
+                    <th class="text-right" width="15%">Amount</th>
                 </tr>
             </thead>
             <tbody>{''.join(rows_html)}
@@ -282,8 +282,8 @@ def build_invoice(
 
     <section style="margin-top: 20px;">
         <table class="layout-table"><tr>
-            <td style="width: 55%; padding-right: 16px;">{bank_box_html}</td>
-            <td style="width: 45%;">
+            <td width="55%" style="padding-right: 16px;">{bank_box_html}</td>
+            <td width="45%">
                 <table class="totals-table">
                     <tr><td>Subtotal</td><td class="text-right">{_inr(subtotal)}</td></tr>
                     <tr><td>GST ({tax_percentage:.0f}%)</td><td class="text-right">{_inr(tax_amount)}</td></tr>
@@ -294,12 +294,15 @@ def build_invoice(
     </section>
 
     <footer class="footer-section">
-        <table class="layout-table"><tr><td style="text-align: right;">
-            <table style="display: inline-table;"><tr><td class="signature-box">
-                <div class="signature-space">{signature_img_html}{seal_img_html}</div>
-                <div class="signature-title">For {escape(business_profile.get('name', '').upper())}<br><small>({escape(business_profile.get('signatory_title', 'Authorized Signatory'))})</small></div>
-            </td></tr></table>
-        </td></tr></table>
+        <table class="layout-table"><tr>
+            <td width="60%"></td>
+            <td width="40%">
+                <div class="signature-box">
+                    <div class="signature-space">{signature_img_html}{seal_img_html}</div>
+                    <div class="signature-title">For {escape(business_profile.get('name', '').upper())}<br><small>({escape(business_profile.get('signatory_title', 'Authorized Signatory'))})</small></div>
+                </div>
+            </td>
+        </tr></table>
         {terms_html}
         {legal_footer_html}
     </footer>

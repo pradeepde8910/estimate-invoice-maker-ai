@@ -114,6 +114,7 @@ export interface DocumentSummary {
   timeline_weeks: number | null
   has_invoice: boolean
   invoice_meta: InvoiceMeta | null
+  version: number
 }
 
 export interface ClientGroup {
@@ -160,4 +161,5 @@ export interface Analytics {
   revenue_pending: number
   status_overview: Record<string, number>
   recent: DocumentSummary[]
+  recent_invoices: DocumentSummary[]
 }

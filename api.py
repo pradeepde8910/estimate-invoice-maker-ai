@@ -1,3 +1,5 @@
+
+
 """
 FastAPI backend for the Pixous Technologies Estimation & Invoicing app.
 
@@ -33,7 +35,7 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse, Response, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 import config
 from agents.graph import build_pipeline
@@ -564,6 +566,8 @@ async def list_documents():
                     "timeline_weeks": est.timeline_weeks,
                     "has_invoice": invoice_row is not None,
                     "invoice_meta": invoice_meta,
+                    "invoice_created_at": invoice_row.created_at.isoformat() if invoice_row else None,
+                    "version": est.version,
                 })
             return {"documents": docs}
     except Exception as e:
@@ -697,23 +701,28 @@ async def get_organization():
     return {"profile": organization.load_profile()}
 
 
+EMAIL_RE = re.compile(r'^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$')
+PHONE_RE = re.compile(r'^\d{10}$')
+GSTIN_RE = re.compile(r'^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$')
+
+
 class OrganizationUpdate(BaseModel):
-    name: Optional[str] = "Your Company Name"
-    tagline: Optional[str] = ""
-    address: Optional[str] = ""
-    email: Optional[str] = ""
-    phone: Optional[str] = ""
-    website: Optional[str] = ""
-    gstin: Optional[str] = ""
-    registration_number: Optional[str] = ""
-    certifications: Optional[str] = ""
-    signatory_name: Optional[str] = ""
-    signatory_title: Optional[str] = "Authorized Signatory"
-    bank_name: Optional[str] = ""
-    bank_account_number: Optional[str] = ""
-    bank_ifsc: Optional[str] = ""
-    bank_branch: Optional[str] = ""
-    invoice_terms: Optional[str] = ""
+    name: Optional[str] = Field("Your Company Name", max_length=255)
+    tagline: Optional[str] = Field("", max_length=255)
+    address: Optional[str] = Field("", max_length=300)
+    email: Optional[str] = Field("", max_length=100)
+    phone: Optional[str] = Field("", max_length=10)
+    website: Optional[str] = Field("", max_length=100)
+    gstin: Optional[str] = Field("", max_length=15)
+    registration_number: Optional[str] = Field("", max_length=50)
+    certifications: Optional[str] = Field("", max_length=500)
+    signatory_name: Optional[str] = Field("", max_length=100)
+    signatory_title: Optional[str] = Field("Authorized Signatory", max_length=100)
+    bank_name: Optional[str] = Field("", max_length=100)
+    bank_account_number: Optional[str] = Field("", max_length=30)
+    bank_ifsc: Optional[str] = Field("", max_length=11)
+    bank_branch: Optional[str] = Field("", max_length=100)
+    invoice_terms: Optional[str] = Field("", max_length=2000)
 
     @field_validator(
         'name', 'tagline', 'address', 'email', 'phone', 'website',
@@ -726,6 +735,27 @@ class OrganizationUpdate(BaseModel):
     def coerce_none_to_str(cls, v):
         return v if v is not None else ""
 
+    @field_validator('email')
+    @classmethod
+    def validate_email(cls, v):
+        if v and not EMAIL_RE.match(v):
+            raise ValueError('Invalid email address')
+        return v
+
+    @field_validator('phone')
+    @classmethod
+    def validate_phone(cls, v):
+        if v and not PHONE_RE.match(v):
+            raise ValueError('Phone number must be exactly 10 digits')
+        return v
+
+    @field_validator('gstin')
+    @classmethod
+    def validate_gstin(cls, v):
+        if v and not GSTIN_RE.match(v.upper()):
+            raise ValueError('Invalid GSTIN format (expected e.g. 22AAAAA0000A1Z5)')
+        return v.upper() if v else v
+
 
 @app.put("/api/organization")
 async def update_organization(payload: OrganizationUpdate, request: Request):
@@ -736,6 +766,61 @@ async def update_organization(payload: OrganizationUpdate, request: Request):
         db.close()
     profile = organization.save_profile(payload.model_dump())
     return {"profile": profile}
+
+
+@app.post("/api/organization/apply-branding-history")
+async def apply_branding_history(request: Request):
+    db = SessionLocal()
+    try:
+        require_role(request, db, {"Admin"})
+        profile = organization.load_profile()
+        
+        # Process Invoices
+        dummy_html, _ = build_invoice({}, profile, "DUMMY")
+        header_match = re.search(r'<header[^>]*>.*?</header>', dummy_html, re.DOTALL)
+        footer_match = re.search(r'<footer[^>]*>.*?</footer>', dummy_html, re.DOTALL)
+        
+        if header_match and footer_match:
+            new_header = header_match.group(0)
+            new_footer = footer_match.group(0)
+            
+            invoices = db.query(Invoice).all()
+            for inv in invoices:
+                if inv.invoice_html:
+                    html = inv.invoice_html
+                    html = re.sub(r'<header[^>]*>.*?</header>', new_header, html, flags=re.DOTALL)
+                    html = re.sub(r'<footer[^>]*>.*?</footer>', new_footer, html, flags=re.DOTALL)
+                    # For older versions that used a different tag structure, we might not match.
+                    inv.invoice_html = html
+                    
+        # Process Documents (Markdown)
+        documents = db.query(Document).filter(Document.type.in_(["quotation", "brd", "srs"])).all()
+        for doc in documents:
+            if doc.content:
+                lines = doc.content.split('\n')
+                # Strip top
+                for i in range(min(15, len(lines))):
+                    if lines[i].strip() == '---':
+                        lines = lines[i+1:]
+                        break
+                # Strip bottom
+                for i in range(len(lines)-1, max(-1, len(lines)-15), -1):
+                    if lines[i].strip() == '---':
+                        lines = lines[:i]
+                        break
+                        
+                stripped = '\n'.join(lines).strip()
+                doc.content = apply_letterhead(stripped, profile)
+                
+        db.commit()
+        return {"status": "success"}
+    except Exception as e:
+        db.rollback()
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(500, f"Failed to apply branding history: {e}")
+    finally:
+        db.close()
 
 
 @app.post("/api/organization/{slot}")
@@ -1142,8 +1227,17 @@ async def update_document_content(base_name: str, doc_type: str, payload: Docume
     return {"content": payload.content}
 
 
+@app.get("/api/test-pdf")
+def test_pdf():
+    import pdf_builder
+    try:
+        res = pdf_builder.html_to_pdf('<html><body>hello</body></html>')
+        return {"status": "success", "len": len(res)}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
 @app.get("/api/documents/{base_name}/{doc_type}/pdf")
-async def download_document_pdf(base_name: str, doc_type: str):
+def download_document_pdf(base_name: str, doc_type: str):
     if doc_type not in ("quotation", "brd", "srs", "invoice"):
         raise HTTPException(400, "Unknown document type")
     
@@ -1217,6 +1311,12 @@ async def get_analytics():
             status_overview["Not Invoiced"] = status_overview.get("Not Invoiced", 0) + 1
 
     total_estimations = len(docs)
+    invoiced_docs = [d for d in docs if d.get("has_invoice")]
+    recent_invoices = sorted(
+        invoiced_docs,
+        key=lambda d: d.get("invoice_created_at") or "",
+        reverse=True,
+    )[:8]
     return {
         "total_estimations": total_estimations,
         "today_count": today_count,
@@ -1228,6 +1328,7 @@ async def get_analytics():
         "revenue_pending": revenue_pending,
         "status_overview": status_overview,
         "recent": docs[:8],
+        "recent_invoices": recent_invoices,
     }
 
 
@@ -1431,7 +1532,10 @@ async def delete_estimation(id: str, request: Request):
     db = SessionLocal()
     try:
         require_role(request, db, {"Admin"})
-        est = db.query(Estimation).filter(Estimation.id == id, Estimation.is_deleted == False).first()
+        est = db.query(Estimation).filter(
+            (Estimation.id == id) | (Estimation.estimation_number == id),
+            Estimation.is_deleted == False
+        ).first()
         if not est:
             raise HTTPException(status_code=404, detail="Estimation not found")
 
@@ -1539,6 +1643,40 @@ async def patch_invoice(id: str, payload: InvoicePatch, request: Request):
         raise HTTPException(status_code=500, detail="Failed to update invoice.")
     finally:
         db.close()
+
+
+@app.delete("/api/invoices/{invoice_number}")
+async def delete_invoice(invoice_number: str, request: Request):
+    db = SessionLocal()
+    try:
+        require_role(request, db, {"Admin"})
+        
+        inv = db.query(Invoice).filter(Invoice.invoice_number == invoice_number).first()
+        if not inv:
+            raise HTTPException(status_code=404, detail="Invoice not found")
+            
+        estimation_id = inv.estimation_id
+        db.delete(inv)
+        db.flush()
+        
+        # Check if there are any other invoices for this estimation
+        remaining = db.query(Invoice).filter(Invoice.estimation_id == estimation_id).count()
+        if remaining == 0:
+            est = db.query(Estimation).filter(Estimation.id == estimation_id).first()
+            if est and est.status == "Invoiced":
+                est.status = "Approved"
+                
+        db.commit()
+        return {"status": "success"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.exception("delete_invoice failed")
+        raise HTTPException(status_code=500, detail="Failed to delete invoice.")
+    finally:
+        db.close()
+
 
 
 # Serve the built React app (frontend/dist) for every non-API route, so the

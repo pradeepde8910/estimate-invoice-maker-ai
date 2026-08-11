@@ -126,8 +126,9 @@ export default function InvoiceDetail() {
                 <input
                   type="number"
                   min={0}
+                  max={100}
                   value={taxPct}
-                  onChange={(e) => setTaxPct(Number(e.target.value))}
+                  onChange={(e) => setTaxPct(Math.min(100, Math.max(0, Number(e.target.value))))}
                   className="mt-2 w-full border border-slate-200 rounded-2xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
                 />
               </div>
@@ -136,8 +137,9 @@ export default function InvoiceDetail() {
                 <input
                   type="number"
                   min={1}
+                  max={365}
                   value={dueDays}
-                  onChange={(e) => setDueDays(Number(e.target.value))}
+                  onChange={(e) => setDueDays(Math.min(365, Math.max(1, Number(e.target.value))))}
                   className="mt-2 w-full border border-slate-200 rounded-2xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
                 />
               </div>

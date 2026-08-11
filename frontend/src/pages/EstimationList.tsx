@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Topbar from '../components/Topbar'
 import Card from '../components/Card'
+import ConfirmModal from '../components/ConfirmModal'
 import { inr } from '../components/EstimationResult'
-import { listClients } from '../api/client'
-import type { ClientGroup } from '../api/types'
+import { listClients, deleteEstimation, ApiError } from '../api/client'
+import type { ClientGroup, DocumentSummary } from '../api/types'
 
 function filterClients(clients: ClientGroup[], query: string): ClientGroup[] {
   const q = query.trim().toLowerCase()
@@ -22,13 +23,34 @@ export default function EstimationList() {
   const [clients, setClients] = useState<ClientGroup[] | null>(null)
   const [search, setSearch] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<DocumentSummary | null>(null)
+  const [deleting, setDeleting] = useState(false)
   const navigate = useNavigate()
 
-  useEffect(() => {
-    listClients()
+  function refresh() {
+    return listClients()
       .then((r) => setClients(r.clients))
       .catch((e) => setError(e.message))
+  }
+
+  useEffect(() => {
+    refresh()
   }, [])
+
+  async function handleDelete() {
+    if (!deleteTarget) return
+    setDeleting(true)
+    setError(null)
+    try {
+      await deleteEstimation(deleteTarget.base_name)
+      setDeleteTarget(null)
+      await refresh()
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   return (
     <div className="flex-1">
@@ -63,9 +85,12 @@ export default function EstimationList() {
                 <ul className="divide-y divide-slate-100">
                   {c.estimations.map((e) => (
                     <li key={e.base_name}>
-                      <button
+                      <div
+                        role="button"
+                        tabIndex={0}
                         onClick={() => navigate(`/estimation/${e.base_name}`)}
-                        className="w-full flex items-center justify-between py-3 px-3 -mx-3 rounded-xl hover:bg-slate-50 group transition-colors"
+                        onKeyDown={(ev) => ev.key === 'Enter' && navigate(`/estimation/${e.base_name}`)}
+                        className="w-full flex items-center justify-between py-3 px-3 -mx-3 rounded-xl hover:bg-slate-50 group transition-colors cursor-pointer"
                       >
                         <span className="text-sm font-medium text-slate-700 group-hover:text-brand-700 text-left truncate max-w-md">
                           {e.project_name}
@@ -77,8 +102,24 @@ export default function EstimationList() {
                           {e.has_invoice && (
                             <span className="text-[11px] font-medium bg-brand-50 text-brand-600 px-2 py-1 rounded-full">Invoiced</span>
                           )}
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={(ev) => {
+                                ev.stopPropagation()
+                                setDeleteTarget(e)
+                              }}
+                              title="Delete Estimation"
+                              className="w-8 h-8 rounded-full text-slate-300 hover:text-coral-600 hover:bg-coral-50 flex items-center justify-center transition-colors"
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M3 6h18"></path>
+                                <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                                <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                              </svg>
+                            </button>
+                          </div>
                         </div>
-                      </button>
+                      </div>
                     </li>
                   ))}
                 </ul>
@@ -87,6 +128,19 @@ export default function EstimationList() {
           </div>
         )}
       </div>
+
+
+
+      <ConfirmModal
+        isOpen={deleteTarget !== null}
+        title="Remove this estimation?"
+        message={`This will remove "${deleteTarget?.project_name ?? ''}" from the list. This cannot be undone.`}
+        confirmText={deleting ? 'Removing…' : 'Remove'}
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   )
 }
+
+

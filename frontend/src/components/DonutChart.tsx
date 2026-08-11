@@ -41,37 +41,39 @@ export default function DonutChart({
 
   return (
     <div className="flex items-center gap-6">
-      <div className="relative w-40 h-40 shrink-0">
-        <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
-            <Pie
-              data={chartData}
-              dataKey="value"
-              nameKey="name"
-              innerRadius={48}
-              outerRadius={72}
-              paddingAngle={chartData.length > 1 ? 2 : 0}
-              stroke="#fcfcfb"
-              strokeWidth={2}
-            >
-              {chartData.map((d, i) => (
-                <Cell
-                  key={d.name}
-                  fill={d.name === 'Other' ? OTHER_COLOR : SERIES_COLORS[i % SERIES_COLORS.length]}
-                />
-              ))}
-            </Pie>
-            <Tooltip
-              formatter={(value: number, name: string) => [
-                `${fmt(value)} (${total ? Math.round((value / total) * 100) : 0}%)`,
-                name,
-              ]}
-              contentStyle={{ borderRadius: 10, borderColor: '#e1e0d9', fontSize: 12 }}
-            />
-          </PieChart>
-        </ResponsiveContainer>
+      <div className="flex flex-col items-center">
+        <div className="relative w-40 h-40 shrink-0">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie
+                data={chartData}
+                dataKey="value"
+                nameKey="name"
+                innerRadius={0}
+                outerRadius={72}
+                paddingAngle={chartData.length > 1 ? 2 : 0}
+                stroke="#fcfcfb"
+                strokeWidth={2}
+              >
+                {chartData.map((d, i) => (
+                  <Cell
+                    key={d.name}
+                    fill={d.name === 'Other' ? OTHER_COLOR : SERIES_COLORS[i % SERIES_COLORS.length]}
+                  />
+                ))}
+              </Pie>
+              <Tooltip
+                formatter={(value: number, name: string) => [
+                  `${fmt(value)} (${total ? Math.round((value / total) * 100) : 0}%)`,
+                  name,
+                ]}
+                contentStyle={{ borderRadius: 10, borderColor: '#e1e0d9', fontSize: 12 }}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
         {centerLabel && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+          <div className="flex flex-col items-center justify-center -mt-2 mb-2">
             <div className="text-base font-bold text-slate-800">{centerLabel.value}</div>
             <div className="text-[10px] text-slate-400">{centerLabel.label}</div>
           </div>

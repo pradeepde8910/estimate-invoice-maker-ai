@@ -208,7 +208,9 @@ def save_branding_file(slot: str, filename: str, content: bytes) -> dict:
 
 def branding_url(profile: dict, slot: str) -> str | None:
     path = profile.get(f"{slot}_path")
-    return f"/branding/{path}" if path else None
+    if path and (BRANDING_DIR / path).exists():
+        return f"/branding/{path}"
+    return None
 
 
 def branding_abs_path(profile: dict, slot: str) -> Path | None:

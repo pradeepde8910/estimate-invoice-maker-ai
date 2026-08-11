@@ -3,19 +3,41 @@ import { useNavigate } from 'react-router-dom'
 import Topbar from '../components/Topbar'
 import Card from '../components/Card'
 import { inr } from '../components/EstimationResult'
-import { listClients } from '../api/client'
-import type { ClientGroup } from '../api/types'
+import ConfirmModal from '../components/ConfirmModal'
+import { listClients, deleteInvoice } from '../api/client'
+import type { ClientGroup, DocumentSummary } from '../api/types'
 
 export default function InvoiceHistory() {
   const [clients, setClients] = useState<ClientGroup[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<DocumentSummary | null>(null)
+  const [deleting, setDeleting] = useState(false)
   const navigate = useNavigate()
 
-  useEffect(() => {
+  function refresh() {
     listClients()
       .then((r) => setClients(r.clients))
       .catch((e) => setError(e.message))
+  }
+
+  useEffect(() => {
+    refresh()
   }, [])
+
+  async function handleDelete() {
+    if (!deleteTarget || !deleteTarget.invoice_meta) return
+    setDeleting(true)
+    setError(null)
+    try {
+      await deleteInvoice(deleteTarget.invoice_meta.invoice_id)
+      setDeleteTarget(null)
+      refresh()
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   return (
     <div className="flex-1">
@@ -71,6 +93,22 @@ export default function InvoiceHistory() {
                         >
                           {e.has_invoice ? 'View Invoice' : 'Generate Invoice'}
                         </button>
+                        {e.has_invoice && (
+                          <button
+                            onClick={(ev) => {
+                              ev.stopPropagation()
+                              setDeleteTarget(e)
+                            }}
+                            title="Delete Invoice"
+                            className="w-8 h-8 rounded-full text-slate-300 hover:text-coral-600 hover:bg-coral-50 flex items-center justify-center transition-colors"
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M3 6h18"></path>
+                              <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                              <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                            </svg>
+                          </button>
+                        )}
                       </div>
                     </li>
                   ))}
@@ -80,6 +118,15 @@ export default function InvoiceHistory() {
           </div>
         )}
       </div>
+
+      <ConfirmModal
+        isOpen={deleteTarget !== null}
+        title="Delete this invoice?"
+        message={`This will permanently delete invoice ${deleteTarget?.invoice_meta?.invoice_number ?? ''}. The associated estimation will be reverted to 'Approved' status.`}
+        confirmText={deleting ? 'Deleting…' : 'Delete'}
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   )
 }

@@ -8,13 +8,38 @@ print-ready PDF with a consistent corporate look — used so "what you see
 from __future__ import annotations
 
 import io
+import os
 import re
 
 import markdown as md
 from PIL import Image
+from reportlab.lib.fonts import addMapping
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 from xhtml2pdf import pisa
 
 from organization import BRANDING_DIR
+
+# ── Register Segoe UI (ships with every Windows 10+ install) so xhtml2pdf
+# renders the same modern sans-serif used on-screen instead of falling back
+# to bare Helvetica.  Segoe UI also contains the ₹ glyph, letting us keep
+# the rupee sign in PDFs rather than swapping it for "Rs.".
+_FONT_DIR = os.path.join(os.environ.get('WINDIR', r'C:\Windows'), 'Fonts')
+_HAS_SEGOE = False
+try:
+    pdfmetrics.registerFont(TTFont('SegoeUI', os.path.join(_FONT_DIR, 'segoeui.ttf')))
+    pdfmetrics.registerFont(TTFont('SegoeUI-Bold', os.path.join(_FONT_DIR, 'segoeuib.ttf')))
+    pdfmetrics.registerFont(TTFont('SegoeUI-Italic', os.path.join(_FONT_DIR, 'segoeuii.ttf')))
+    pdfmetrics.registerFont(TTFont('SegoeUI-BoldItalic', os.path.join(_FONT_DIR, 'segoeuiz.ttf')))
+    addMapping('SegoeUI', 0, 0, 'SegoeUI')
+    addMapping('SegoeUI', 1, 0, 'SegoeUI-Bold')
+    addMapping('SegoeUI', 0, 1, 'SegoeUI-Italic')
+    addMapping('SegoeUI', 1, 1, 'SegoeUI-BoldItalic')
+    _HAS_SEGOE = True
+except Exception:
+    pass
+
+_PDF_FONT = 'SegoeUI' if _HAS_SEGOE else 'Helvetica'
 
 # xhtml2pdf renders <img> at its natural pixel size unless width/height are
 # set explicitly — max-width/max-height in CSS are not honored. Branding
@@ -218,18 +243,21 @@ def markdown_to_pdf(markdown_text: str) -> bytes:
     return buffer.getvalue()
 
 
-_PAGE_FOOTER_CSS = """
-@page {
+_PAGE_FOOTER_CSS = f"""
+@page {{
     size: A4;
-    margin-bottom: 1.6cm;
-    @frame footer_frame {
+    margin: 1.2cm 1.2cm 2cm 1.2cm;
+    @frame footer_frame {{
         -pdf-frame-content: footer_content;
         bottom: 0.6cm;
-        margin-left: 1.6cm;
-        margin-right: 1.6cm;
+        margin-left: 1.2cm;
+        margin-right: 1.2cm;
         height: 1cm;
-    }
-}
+    }}
+}}
+body {{ padding: 0 !important; background-color: #ffffff !important; }}
+.invoice-card {{ padding: 12px !important; max-width: none !important; box-shadow: none !important; border-radius: 0 !important; }}
+* {{ font-family: {_PDF_FONT}, Helvetica, Arial, sans-serif !important; }}
 """
 _FOOTER_DIV = (
     '<div id="footer_content" style="text-align:center;font-size:7.5pt;color:#94a3b8;">'
@@ -243,19 +271,83 @@ _WEB_FONT_LINK_PATTERN = re.compile(
 
 
 def html_to_pdf(html_document: str) -> bytes:
-    """Render an already-complete, self-styled HTML document (e.g. the
-    invoice template) to PDF — no Markdown conversion step, just the same
-    font/emoji/image fixes applied to any xhtml2pdf render."""
-    # Google Fonts <link> tags are for the on-screen iframe (a real browser).
-    # xhtml2pdf can't bind custom @font-face text runs reliably regardless
-    # (confirmed separately), so fetching them here only adds several
-    # seconds of network latency — and would break entirely offline — for
-    # zero visual benefit. Stripped before rendering; PDF keeps its safe
-    # system-font fallback.
+    """Render a self-contained HTML invoice to PDF.
+
+    Uses Playwright (headless Chromium) when available for pixel-perfect
+    output identical to the on-screen preview — same Google Sans fonts,
+    ₹ symbol, CSS layout, shadows, and rounded corners.  Falls back to
+    the legacy xhtml2pdf path if Playwright isn't installed.
+    """
+    try:
+        return _html_to_pdf_playwright(html_document)
+    except Exception as e:
+        with open("playwright_error.log", "w") as f:
+            f.write(f"PLAYWRIGHT ERROR: {e}\n")
+        return _html_to_pdf_xhtml2pdf(html_document)
+
+
+def _html_to_pdf_playwright(html_document: str) -> bytes:
+    """Pixel-perfect PDF via headless Chromium."""
+    from playwright.sync_api import sync_playwright
+
+    # 1. Playwright renders raw HTML, so it cannot resolve relative URLs like "/branding/logo.png".
+    #    We rewrite them to point directly to the local uvicorn server.
+    # 2. We force a white background and remove padding so the PDF doesn't look like a UI screen.
+    html_document = html_document.replace('src="/branding/', 'src="http://localhost:8010/branding/')
+    style_override = "<style>@media screen { body { background-color: #ffffff !important; padding: 0 !important; } .invoice-card { box-shadow: none !important; border-radius: 0 !important; padding: 0 !important; max-width: none !important; } }</style>"
+    if "</head>" in html_document:
+        html_document = html_document.replace("</head>", style_override + "</head>")
+    
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        # Use 'screen' media so the PDF looks identical to the on-screen
+        # iframe — including background colours, shadows, and rounded
+        # corners.  (The default 'print' media triggers @media print
+        # overrides that strip padding/shadows.)
+        page.emulate_media(media='screen')
+        page.set_content(html_document, wait_until='networkidle')
+        pdf_bytes = page.pdf(
+            format='A4',
+            print_background=True,
+            margin={
+                'top': '1.5cm',
+                'bottom': '1.5cm',
+                'left': '1.5cm',
+                'right': '1.5cm',
+            },
+            display_header_footer=True,
+            header_template='<span></span>',
+            footer_template=(
+                '<div style="text-align:center;width:100%;font-size:7.5pt;'
+                'color:#94a3b8;font-family:sans-serif;">'
+                'Page <span class="pageNumber"></span> of '
+                '<span class="totalPages"></span></div>'
+            ),
+        )
+        browser.close()
+        return pdf_bytes
+
+
+def _html_to_pdf_xhtml2pdf(html_document: str) -> bytes:
+    """Legacy fallback using xhtml2pdf (limited CSS support)."""
     html_document = _WEB_FONT_LINK_PATTERN.sub("", html_document)
-    html_document = html_document.replace("₹", "Rs. ")
+    html_document = html_document.replace("₹", "Rs.")
     html_document = _EMOJI_PATTERN.sub("", html_document)
     html_document = _size_branding_images(html_document)
+
+    # Fix old signature layout for xhtml2pdf
+    html_document = re.sub(
+        r'<table\s+class="layout-table">\s*<tr>\s*<td\s+style="text-align:\s*right;">\s*'
+        r'<table\s+style="display:\s*inline-table;">\s*<tr>\s*<td\s+class="signature-box">'
+        r'(.*?)</td>\s*</tr>\s*</table>\s*</td>\s*</tr>\s*</table>',
+        r'<table class="layout-table"><tr>'
+        r'<td width="60%"></td>'
+        r'<td width="40%"><div class="signature-box">\1</div></td>'
+        r'</tr></table>',
+        html_document,
+        flags=re.DOTALL,
+    )
 
     if "</head>" in html_document:
         html_document = html_document.replace("</head>", f"<style>{_PAGE_FOOTER_CSS}</style></head>", 1)
@@ -267,3 +359,5 @@ def html_to_pdf(html_document: str) -> bytes:
     if result.err:
         raise RuntimeError("Failed to render PDF")
     return buffer.getvalue()
+
+

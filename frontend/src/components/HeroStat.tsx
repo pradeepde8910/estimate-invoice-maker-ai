@@ -24,11 +24,16 @@ export default function HeroStat({
 }) {
   const t = TONES[tone]
   return (
-    <div className={`relative overflow-hidden rounded-3xl ${t.bg} shadow-card p-5 h-full`}>
+    <div className={`relative overflow-hidden rounded-3xl ${t.bg} shadow-card p-5 h-full min-w-0`}>
       <div className={`absolute -right-6 -top-8 w-28 h-28 rounded-full blur-2xl ${t.blob}`} />
-      <div className="relative">
+      <div className="relative min-w-0">
         <div className="text-sm font-medium text-slate-500">{label}</div>
-        <div className={`text-3xl font-bold mt-2 ${t.text}`}>{value}</div>
+        <div
+          className={`text-3xl font-bold mt-2 truncate ${t.text}`}
+          title={typeof value === 'string' ? value : undefined}
+        >
+          {value}
+        </div>
         {sub && <div className="text-xs text-slate-400 mt-1">{sub}</div>}
       </div>
     </div>

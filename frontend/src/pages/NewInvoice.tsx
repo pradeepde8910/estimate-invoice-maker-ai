@@ -139,17 +139,19 @@ function ManualInvoiceForm({ onCreated }: { onCreated: (baseName: string) => voi
               />
               <input
                 type="number"
-                min={0}
+                min={1}
+                max={99999}
                 value={row.quantity}
-                onChange={(e) => updateRow(i, { quantity: Number(e.target.value) })}
+                onChange={(e) => updateRow(i, { quantity: Math.min(99999, Math.max(1, Number(e.target.value))) })}
                 placeholder="1"
                 className="col-span-2 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
               />
               <input
                 type="number"
                 min={0}
+                max={9999999}
                 value={row.rate}
-                onChange={(e) => updateRow(i, { rate: Number(e.target.value) })}
+                onChange={(e) => updateRow(i, { rate: Math.min(9999999, Math.max(0, Number(e.target.value))) })}
                 placeholder="0"
                 className="col-span-2 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
               />

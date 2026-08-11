@@ -91,9 +91,10 @@ export default function RateCardPage() {
                     <input
                       type="number"
                       min={0}
+                      max={9999999}
                       step={100}
                       value={r.rate_per_hour}
-                      onChange={(e) => updateRate(key, Number(e.target.value))}
+                      onChange={(e) => updateRate(key, Math.min(9999999, Math.max(0, Number(e.target.value))))}
                       className="w-28 text-right border border-slate-200 rounded-full px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
                     />
                     <span className="text-slate-400 text-xs">/hr</span>
