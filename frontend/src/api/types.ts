@@ -125,7 +125,7 @@ export interface ClientGroup {
 }
 
 export interface RateCard {
-  [key: string]: { rate_per_hour: number; label: string }
+  [key: string]: { rate_per_hour: number; label: string; is_custom?: boolean }
 }
 
 export interface OrganizationProfile {

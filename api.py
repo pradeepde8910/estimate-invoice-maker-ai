@@ -236,13 +236,7 @@ app.mount("/branding", StaticFiles(directory=str(organization.BRANDING_DIR)), na
 UPLOAD_DIR = Path(config.OUTPUT_DIR).parent / "uploads"
 UPLOAD_DIR.mkdir(exist_ok=True)
 
-RATE_CARD_OVERRIDES_PATH = Path(__file__).parent / "rate_card_overrides.json"
-if RATE_CARD_OVERRIDES_PATH.exists():
-    try:
-        overrides = json.loads(RATE_CARD_OVERRIDES_PATH.read_text(encoding="utf-8"))
-        config.DEVELOPER_RATES.update(overrides)
-    except Exception:
-        pass
+# (rate_card_overrides.json logic removed - database is now the single source of truth)
 
 # ── Stage sequencing shown in the UI ──────────────────────────────────────────
 # Maps the 8 stepper items in the UI to the pipeline's internal `current_stage`
@@ -1346,40 +1340,58 @@ async def update_rate_card(payload: RateCardUpdate, request: Request):
     db = SessionLocal()
     try:
         require_role(request, db, {"Admin"})
+        
+        # Handle additions and updates
         for key, value in payload.rates.items():
-            if key in config.DEVELOPER_RATES:
-                new_rate = value.get("rate_per_hour")
-                if new_rate is not None:
-                    # Deactivate current active rate
-                    current_active = db.query(RateCard).filter(
-                        RateCard.role_key == key, RateCard.is_active == True
-                    ).first()
-                    
-                    if current_active:
-                        if current_active.rate_per_hour != new_rate:
-                            current_active.is_active = False
-                            current_active.effective_to = datetime.now()
-                            
-                            # Create new rate card entry
-                            new_db_rate = RateCard(
-                                role_key=key,
-                                role_label=config.DEVELOPER_RATES[key]["label"],
-                                rate_per_hour=new_rate,
-                                effective_from=datetime.now(),
-                                is_active=True
-                            )
-                            db.add(new_db_rate)
-                    else:
+            new_rate = value.get("rate_per_hour")
+            new_label = value.get("label", key)
+            if new_rate is not None:
+                # Deactivate current active rate if it exists and changed
+                current_active = db.query(RateCard).filter(
+                    RateCard.role_key == key, RateCard.is_active == True
+                ).first()
+                
+                if current_active:
+                    if current_active.rate_per_hour != new_rate or current_active.role_label != new_label:
+                        current_active.is_active = False
+                        current_active.effective_to = datetime.now()
+                        
+                        # Create new rate card entry
                         new_db_rate = RateCard(
                             role_key=key,
-                            role_label=config.DEVELOPER_RATES[key]["label"],
+                            role_label=new_label,
                             rate_per_hour=new_rate,
                             effective_from=datetime.now(),
                             is_active=True
                         )
                         db.add(new_db_rate)
-                    
-                    config.DEVELOPER_RATES[key]["rate_per_hour"] = new_rate
+                else:
+                    new_db_rate = RateCard(
+                        role_key=key,
+                        role_label=new_label,
+                        rate_per_hour=new_rate,
+                        effective_from=datetime.now(),
+                        is_active=True
+                    )
+                    db.add(new_db_rate)
+                
+                config.DEVELOPER_RATES[key] = {
+                    "rate_per_hour": new_rate,
+                    "label": new_label,
+                    "is_custom": key not in config.SYSTEM_ROLE_KEYS
+                }
+                
+        # Handle deletions (any active custom role not in payload)
+        active_custom_roles = db.query(RateCard).filter(
+            RateCard.is_active == True,
+            ~RateCard.role_key.in_(config.SYSTEM_ROLE_KEYS)
+        ).all()
+        for custom_role in active_custom_roles:
+            if custom_role.role_key not in payload.rates:
+                custom_role.is_active = False
+                custom_role.effective_to = datetime.now()
+                config.DEVELOPER_RATES.pop(custom_role.role_key, None)
+
         db.commit()
     except HTTPException:
         db.rollback()
@@ -1389,13 +1401,6 @@ async def update_rate_card(payload: RateCardUpdate, request: Request):
         print(f"DB update_rate_card failed: {e}")
     finally:
         db.close()
-
-    try:
-        RATE_CARD_OVERRIDES_PATH.write_text(
-            json.dumps(config.DEVELOPER_RATES, indent=2), encoding="utf-8"
-        )
-    except Exception:
-        pass
 
     return {"rates": config.DEVELOPER_RATES}
 

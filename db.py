@@ -227,10 +227,14 @@ def sync_rate_card():
                 db.add(db_rate)
             db.commit()
         else:
-            # Sync config.DEVELOPER_RATES with DB values
+            # The DB is the absolute source of truth. We load all active rates into the config.
+            config.DEVELOPER_RATES.clear()
             for db_rate in active_db_rates:
-                if db_rate.role_key in config.DEVELOPER_RATES:
-                    config.DEVELOPER_RATES[db_rate.role_key]["rate_per_hour"] = db_rate.rate_per_hour
+                config.DEVELOPER_RATES[db_rate.role_key] = {
+                    "label": db_rate.role_label,
+                    "rate_per_hour": db_rate.rate_per_hour,
+                    "is_custom": db_rate.role_key not in config.SYSTEM_ROLE_KEYS
+                }
     except Exception as e:
         print(f"Error syncing rate card: {e}")
     finally:

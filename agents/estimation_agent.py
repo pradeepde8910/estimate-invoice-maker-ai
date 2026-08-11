@@ -38,7 +38,7 @@ You MUST respond with ONLY valid JSON:
       "title": "string",
       "category": "string",
       "estimated_hours": number,
-      "required_role": "string (key from rate card)",
+      "required_role": "string (key from rate card - MUST EXPLICITLY MATCH a key in the provided DEVELOPER_RATES. DO NOT INVENT ROLES!)",
       "adjustment_reason": "string — why hours were changed, or 'no change'"
     }
   ],

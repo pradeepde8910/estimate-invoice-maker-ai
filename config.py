@@ -69,6 +69,8 @@ DEVELOPER_RATES = {
     "security_specialist":    {"rate_per_hour": 6400, "label": "Security Specialist"},
 }
 
+SYSTEM_ROLE_KEYS = set(DEVELOPER_RATES.keys())
+
 # ─── Output Settings ─────────────────────────────────────────────────────────
 
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "output")
