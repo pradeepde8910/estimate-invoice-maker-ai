@@ -102,14 +102,23 @@ export default function EstimationList() {
                           {e.has_invoice && (
                             <span className="text-[11px] font-medium bg-brand-50 text-brand-600 px-2 py-1 rounded-full">Invoiced</span>
                           )}
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-1 ml-2">
+                            <button
+                              onClick={(ev) => {
+                                ev.stopPropagation()
+                                navigate(`/estimation/${e.base_name}`)
+                              }}
+                              className="text-xs font-medium text-brand-600 bg-brand-50 hover:bg-brand-100 hover:text-brand-700 px-4 py-2 rounded-full transition-colors"
+                            >
+                              View
+                            </button>
                             <button
                               onClick={(ev) => {
                                 ev.stopPropagation()
                                 setDeleteTarget(e)
                               }}
                               title="Delete Estimation"
-                              className="w-8 h-8 rounded-full text-slate-300 hover:text-coral-600 hover:bg-coral-50 flex items-center justify-center transition-colors"
+                              className="w-8 h-8 rounded-full text-slate-300 hover:text-coral-600 hover:bg-coral-50 flex items-center justify-center transition-colors ml-1"
                             >
                               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                 <path d="M3 6h18"></path>
