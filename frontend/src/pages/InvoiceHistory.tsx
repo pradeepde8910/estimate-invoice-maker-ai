@@ -29,7 +29,7 @@ export default function InvoiceHistory() {
     setDeleting(true)
     setError(null)
     try {
-      await deleteInvoice(deleteTarget.invoice_meta.invoice_id)
+      await deleteInvoice(deleteTarget.invoice_meta.invoice_number)
       setDeleteTarget(null)
       refresh()
     } catch (e: any) {
