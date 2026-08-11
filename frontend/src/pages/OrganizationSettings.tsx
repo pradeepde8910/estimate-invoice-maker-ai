@@ -11,7 +11,7 @@ type AssetSlotKey = 'logo' | 'signature' | 'seal'
 
 const EMAIL_RE = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/
 const PHONE_RE = /^\d{10}$/
-const GSTIN_RE = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z][a-zA-Z0-9][0-9A-Z]$/i
+const GSTIN_RE = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/
 
 const FIELD_ROWS: {
   key: keyof OrganizationProfile
