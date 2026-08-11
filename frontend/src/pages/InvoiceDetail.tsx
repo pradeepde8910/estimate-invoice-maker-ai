@@ -14,13 +14,12 @@ import {
 } from '../api/client'
 import type { InvoiceMeta, InvoiceStatus } from '../api/types'
 
-const STATUSES: InvoiceStatus[] = ['Draft', 'Sent', 'Paid', 'Overdue', 'Cancelled']
+const STATUSES: InvoiceStatus[] = ['Draft', 'Sent', 'Paid', 'Cancelled']
 const STATUS_TONE: Record<InvoiceStatus, string> = {
   Draft: 'bg-slate-100 text-slate-600',
-  Sent: 'bg-brand-50 text-brand-700',
-  Paid: 'bg-brand-100 text-brand-700',
-  Overdue: 'bg-coral-100 text-coral-700',
-  Cancelled: 'bg-slate-100 text-slate-400',
+  Sent: 'bg-blue-100 text-blue-700',
+  Paid: 'bg-green-100 text-green-700',
+  Cancelled: 'bg-slate-100 text-slate-500',
 }
 
 export default function InvoiceDetail() {
@@ -106,6 +105,8 @@ export default function InvoiceDetail() {
   const clientName = estimation?.client_name || estimation?.analysis?.client_name || 'Client'
   const projectName = estimation?.project_name || estimation?.analysis?.project_name || ''
   const grandTotal = estimation?.cost_estimation?.grand_total ?? 0
+  
+  const isDraft = (invoiceMeta?.status ?? 'Draft') === 'Draft'
 
   return (
     <div className="flex-1">
@@ -180,8 +181,9 @@ export default function InvoiceDetail() {
               </div>
               <div className="flex gap-3">
                 <button
+                  disabled={!isDraft}
                   onClick={() => setInvoiceHtml(null)}
-                  className="text-sm font-medium bg-white shadow-card px-4 py-2 rounded-full text-slate-600 hover:bg-slate-50"
+                  className="text-sm font-medium bg-white shadow-card px-4 py-2 rounded-full text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Regenerate
                 </button>
@@ -203,8 +205,9 @@ export default function InvoiceDetail() {
                   </>
                 ) : (
                   <button
+                    disabled={!isDraft}
                     onClick={() => setEditing(true)}
-                    className="text-sm font-medium bg-white shadow-card px-4 py-2 rounded-full text-slate-600 hover:bg-slate-50"
+                    className="text-sm font-medium bg-white shadow-card px-4 py-2 rounded-full text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     ✎ Edit
                   </button>
