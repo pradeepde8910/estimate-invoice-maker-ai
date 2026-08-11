@@ -378,11 +378,18 @@ function AssetSlot({
         <input
           ref={inputRef}
           type="file"
-          accept="image/*"
+          accept="image/jpeg,image/png,image/webp"
           className="hidden"
           onChange={(e) => {
             const f = e.target.files?.[0]
-            if (f) onUpload(f)
+            if (f) {
+              const validTypes = ['image/jpeg', 'image/png', 'image/webp']
+              if (validTypes.includes(f.type)) {
+                onUpload(f)
+              } else {
+                alert('Please upload a valid image format (JPEG, PNG, or WEBP).')
+              }
+            }
           }}
         />
         {path ? (
@@ -400,7 +407,10 @@ function AssetSlot({
             </button>
           </>
         ) : (
-          <span className="text-xs text-slate-400 text-center px-2">Click to upload</span>
+          <span className="text-xs text-slate-400 text-center px-2 flex flex-col gap-0.5">
+            <span className="font-medium text-slate-500">Click to upload</span>
+            <span className="text-[10px]">JPEG, PNG, WEBP</span>
+          </span>
         )}
       </div>
       <div className="text-xs font-medium text-slate-600 text-center mt-2">{label}</div>
