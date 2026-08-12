@@ -45,9 +45,9 @@ export default function EstimationResult({
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card title="Cost Breakdown" className="lg:col-span-2">
-          <div className="grid sm:grid-cols-2 gap-6">
+          <div className="flex flex-col gap-8">
             <div>
-              <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">By Role</div>
+              <div className="text-sm font-semibold text-slate-600 uppercase tracking-wide mb-5 text-center">By Role</div>
               <DonutChart
                 data={result.role_estimates.map((r) => ({ name: r.role_label, value: r.total_cost }))}
                 valueFormatter={inr}
@@ -55,7 +55,7 @@ export default function EstimationResult({
               />
             </div>
             <div>
-              <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">By Category</div>
+              <div className="text-sm font-semibold text-slate-600 uppercase tracking-wide mb-5 text-center">By Category</div>
               <DonutChart
                 data={result.category_breakdown.map((c) => ({ name: c.category, value: c.total_cost }))}
                 valueFormatter={inr}

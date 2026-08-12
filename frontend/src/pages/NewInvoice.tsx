@@ -28,7 +28,7 @@ export default function NewInvoice() {
 
   return (
     <div className="flex-1">
-      <Topbar title="New Invoice" subtitle="Create an invoice manually, or generate one from an existing estimation." />
+      <Topbar showBack title="New Invoice" subtitle="Create an invoice manually, or generate one from an existing estimation." />
       <div className="p-8 space-y-6">
         {uninvoiced.length > 0 && (
           <Card title="From an Existing Estimation">

@@ -41,7 +41,7 @@ export default function InvoiceHistory() {
 
   return (
     <div className="flex-1">
-      <Topbar title="Invoice History" subtitle="Every estimation, ready to be invoiced or already invoiced." />
+      <Topbar showBack title="Invoice History" subtitle="Every estimation, ready to be invoiced or already invoiced." />
       <div className="p-8 space-y-6">
         <div className="flex justify-end">
           <button

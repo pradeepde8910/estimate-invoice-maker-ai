@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import Topbar from '../components/Topbar'
 import Card from '../components/Card'
-import BackLink from '../components/BackLink'
 import { getRateCard, updateRateCard } from '../api/client'
 import type { RateCard as RateCardType } from '../api/types'
 
@@ -78,8 +77,7 @@ export default function RateCardPage() {
 
   return (
     <div className="flex-1">
-      <BackLink />
-      <Topbar title="Rate Card" subtitle="Hourly rates used by the estimation agent for cost calculations." />
+      <Topbar showBack title="Rate Card" subtitle="Hourly rates used by the estimation agent for cost calculations." />
       <div className="p-6 max-w-3xl">
         <Card
           title="Developer Rates (INR / hour)"

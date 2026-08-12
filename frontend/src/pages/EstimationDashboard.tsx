@@ -59,7 +59,7 @@ export default function EstimationDashboard() {
 
   return (
     <div className="flex-1">
-      <Topbar title="Estimation Dashboard" subtitle="Overview of every estimation you've created." />
+      <Topbar showBack title="Estimation Dashboard" subtitle="Overview of every estimation you've created." />
       <div className="p-8 space-y-6">
         <div className="flex justify-end">
           <button
@@ -112,14 +112,20 @@ export default function EstimationDashboard() {
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {data.recent.map((e) => (
-                      <tr key={e.base_name} className="hover:bg-slate-50 cursor-pointer" onClick={() => navigate(`/estimation/${e.base_name}`)}>
+                      <tr key={e.base_name} className="hover:bg-slate-50">
                         <td className="py-2.5 pr-4 text-slate-700">{e.client_name}</td>
                         <td className="py-2.5 pr-4 text-slate-600 truncate max-w-[220px]">{e.project_name}</td>
                         <td className="py-2.5 pr-4 font-medium text-slate-800 tabular-nums">
                           {e.grand_total != null ? inr(e.grand_total) : '—'}
                         </td>
                         <td className="py-2.5 pr-4 text-slate-400 text-xs">{new Date(e.modified).toLocaleDateString()}</td>
-                        <td className="py-2.5 pr-4 text-right">
+                        <td className="py-2.5 pr-4 text-right flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => navigate(`/estimation/${e.base_name}`)}
+                            className="text-xs font-medium text-brand-600 bg-brand-50 hover:bg-brand-100 hover:text-brand-700 px-3 py-1.5 rounded-full transition-colors mr-1"
+                          >
+                            View
+                          </button>
                           <button
                             onClick={(ev) => {
                               ev.stopPropagation()

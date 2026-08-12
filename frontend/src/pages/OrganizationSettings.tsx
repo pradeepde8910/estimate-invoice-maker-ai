@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
+import { useNavigate, useBlocker } from 'react-router-dom'
 import Topbar from '../components/Topbar'
 import Card from '../components/Card'
-import BackLink from '../components/BackLink'
 import { getOrganization, updateOrganization, uploadOrganizationAsset, deleteOrganizationAsset, applyBrandingHistory } from '../api/client'
 import ConfirmModal from '../components/ConfirmModal'
 import type { OrganizationProfile } from '../api/types'
@@ -10,8 +10,9 @@ import { refreshLogo } from '../hooks/useLogo'
 type AssetSlotKey = 'logo' | 'signature' | 'seal'
 
 const EMAIL_RE = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/
-const PHONE_RE = /^\d{10}$/
-const GSTIN_RE = /^(0[1-9]|[1-2][0-9]|3[0-7])[A-Z]{3}[CPHFATBLJG][A-Z][0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/
+const PHONE_RE = /^[6-9]\d{9}$/
+const GSTIN_RE = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/
+const WEBSITE_RE = /^(https?:\/\/)?([\w.-]+)\.([a-z]{2,6})([\/\w .-]*)*\/?$/i
 
 const FIELD_ROWS: {
   key: keyof OrganizationProfile
@@ -26,7 +27,7 @@ const FIELD_ROWS: {
   { key: 'tagline', label: 'Tagline', placeholder: 'e.g. Strategize · Amplify · Transform', span: true, maxLength: 255 },
   { key: 'address', label: 'Address', placeholder: 'Street, City, State, PIN', span: true, multiline: true, required: true, maxLength: 300 },
   { key: 'email', label: 'Email', placeholder: 'e.g. info@company.com', required: true, maxLength: 100 },
-  { key: 'phone', label: 'Phone', placeholder: '10-digit mobile number', required: true, maxLength: 10 },
+  { key: 'phone', label: 'Phone', placeholder: '10-digit mobile number', required: true, maxLength: 20 },
   { key: 'website', label: 'Website', placeholder: 'e.g. https://company.com', maxLength: 100 },
   { key: 'gstin', label: 'GSTIN', placeholder: 'e.g. 22AAAAA0000A1Z5', required: true, maxLength: 15 },
   { key: 'registration_number', label: 'Registration Number', placeholder: 'e.g. U72900TN2020PTC123456', maxLength: 50 },
@@ -60,11 +61,46 @@ function formatGSTIN(val: string): string {
   return filtered
 }
 
+function formatPhone(val: string): string {
+  let cleaned = val
+  if (cleaned.startsWith('+91')) {
+     cleaned = cleaned.slice(3)
+  } else if (cleaned.startsWith('91') && cleaned.replace(/\D/g, '').length > 10) {
+     cleaned = cleaned.slice(2)
+  }
+  return cleaned.replace(/\D/g, '').slice(0, 10)
+}
+
+function uiFormatPhone(val: string): string {
+  const digits = formatPhone(val)
+  if (digits.length === 0) return ''
+  if (digits.length > 5) return '+91 ' + digits.slice(0, 5) + ' ' + digits.slice(5)
+  return '+91 ' + digits
+}
+
+function truncateWords(val: string, max: number): string {
+  const tokens = val.split(/(\s+)/)
+  let wordCount = 0
+  let result = ''
+  for (const token of tokens) {
+    if (token.trim().length > 0) {
+      wordCount++
+      if (wordCount > max) break
+    }
+    result += token
+  }
+  return result
+}
+
 function validateField(key: keyof OrganizationProfile, value: string, required?: boolean): string | null {
   if (!value) return required ? 'This field is required' : null
   if (key === 'email' && !EMAIL_RE.test(value)) return 'Enter a valid email address'
-  if (key === 'phone' && !PHONE_RE.test(value)) return 'Enter a valid 10-digit mobile number'
+  if (key === 'phone' && !PHONE_RE.test(formatPhone(value))) return 'Enter a valid 10-digit Indian mobile number'
+  if (key === 'website' && value && !WEBSITE_RE.test(value)) return 'Enter a valid website URL'
   if (key === 'gstin' && !GSTIN_RE.test(value.toUpperCase())) return 'Enter a valid GSTIN, e.g. 22AAAAA0000A1Z5'
+  if (key === 'bank_name' && !/^[A-Za-z\s.]+$/.test(value)) return 'Bank name should contain only letters and spaces'
+  if (key === 'bank_account_number' && !/^\d{9,18}$/.test(value)) return 'Enter a valid bank account number (9-18 digits)'
+  if (key === 'bank_ifsc' && !/^[A-Z]{4}0[0-9]{6}$/.test(value.toUpperCase())) return 'Enter a valid IFSC code (e.g., SBIN0125620)'
   
   if (key === 'invoice_terms') {
     const wordCount = value.trim().split(/\s+/).filter((w) => w.length > 0).length
@@ -85,6 +121,34 @@ export default function OrganizationSettings() {
   const [removeConfirm, setRemoveConfirm] = useState<AssetSlotKey | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof OrganizationProfile, string>>>({})
   const [updateHistory, setUpdateHistory] = useState(false)
+  const [pendingAssets, setPendingAssets] = useState<Partial<Record<AssetSlotKey, File | null>>>({})
+  const [pendingAssetUrls, setPendingAssetUrls] = useState<Partial<Record<AssetSlotKey, string>>>({})
+  const navigate = useNavigate()
+  const [showBackConfirm, setShowBackConfirm] = useState(false)
+
+  const blocker = useBlocker(
+    ({ currentLocation, nextLocation }) =>
+      isDirty && currentLocation.pathname !== nextLocation.pathname
+  )
+
+  useEffect(() => {
+    if (blocker.state === 'blocked') {
+      let hasErrors = false
+      for (const f of FIELD_ROWS) {
+        if (validateField(f.key, ((profile?.[f.key] as string) || '').trim(), f.required)) hasErrors = true
+      }
+      for (const f of BANK_FIELD_ROWS) {
+        if (validateField(f.key, ((profile?.[f.key] as string) || '').trim(), false)) hasErrors = true
+      }
+      
+      if (hasErrors) {
+        save(false)
+        blocker.reset()
+      } else {
+        setShowBackConfirm(true)
+      }
+    }
+  }, [blocker.state, profile, isDirty])
 
   useEffect(() => {
     getOrganization()
@@ -100,33 +164,63 @@ export default function OrganizationSettings() {
       .catch((e) => setError(e.message))
   }, [])
 
-  async function save() {
-    if (!profile) return
+  async function save(navigateAfterSuccess = false) {
+    if (!profile) return false
     const errors: Partial<Record<keyof OrganizationProfile, string>> = {}
     for (const f of FIELD_ROWS) {
       const msg = validateField(f.key, ((profile[f.key] as string) || '').trim(), f.required)
       if (msg) errors[f.key] = msg
     }
+    for (const f of BANK_FIELD_ROWS) {
+      const msg = validateField(f.key, ((profile[f.key] as string) || '').trim(), false)
+      if (msg) errors[f.key] = msg
+    }
     setFieldErrors(errors)
     if (Object.keys(errors).length > 0) {
       setError('Please fix the highlighted fields before saving.')
-      return
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+      return false
     }
     setSaving(true)
     setError(null)
     try {
-      const { logo_path, signature_path, seal_path, ...fields } = profile
+      let updatedProfile = { ...profile }
+      for (const slot of ['logo', 'signature', 'seal'] as AssetSlotKey[]) {
+        if (pendingAssets[slot] === null) {
+          const r = await deleteOrganizationAsset(slot)
+          updatedProfile = { ...updatedProfile, [`${slot}_path`]: (r.profile as any)[`${slot}_path`] }
+          if (slot === 'logo') refreshLogo(null)
+        } else if (pendingAssets[slot]) {
+          const r = await uploadOrganizationAsset(slot, pendingAssets[slot]!)
+          updatedProfile = { ...updatedProfile, [`${slot}_path`]: (r.profile as any)[`${slot}_path`] }
+          if (slot === 'logo') refreshLogo((r.profile as any)[`${slot}_path`])
+        }
+      }
+
+      const { logo_path, signature_path, seal_path, ...fields } = updatedProfile
+      if (fields.phone) {
+        fields.phone = formatPhone(fields.phone as string)
+      }
       const r = await updateOrganization(fields)
-      const updated = { ...r.profile, logo_path, signature_path, seal_path }
-      setProfile(updated)
-      setSavedProfile(updated)
+      const finalUpdated = { ...r.profile, logo_path, signature_path, seal_path }
+      setProfile(finalUpdated)
+      setSavedProfile(finalUpdated)
       setSaved(true)
       setIsDirty(false)
+      Object.values(pendingAssetUrls).forEach(url => { if (url && url.startsWith('blob:')) URL.revokeObjectURL(url) })
+      setPendingAssets({})
+      setPendingAssetUrls({})
+      
       if (updateHistory) {
         await applyBrandingHistory()
       }
+      if (navigateAfterSuccess) {
+        navigate(-1)
+      }
+      return true
     } catch (e: any) {
       setError(e.message)
+      return false
     } finally {
       setSaving(false)
     }
@@ -139,43 +233,35 @@ export default function OrganizationSettings() {
     setIsDirty(false)
     setError(null)
     setFieldErrors({})
+    Object.values(pendingAssetUrls).forEach(url => { if (url && url.startsWith('blob:')) URL.revokeObjectURL(url) })
+    setPendingAssets({})
+    setPendingAssetUrls({})
   }
 
-  async function handleAssetUpload(slot: AssetSlotKey, file: File) {
-    setError(null)
-    try {
-      const r = await uploadOrganizationAsset(slot, file)
-      const newPath = (r.profile as any)[`${slot}_path`]
-      setProfile((prev) => prev ? { ...prev, [`${slot}_path`]: newPath } : r.profile)
-      if (slot === 'logo') refreshLogo(newPath)
-      if (updateHistory) {
-        await applyBrandingHistory()
-      }
-    } catch (e: any) {
-      setError(e.message)
-    }
+  function handleAssetUpload(slot: AssetSlotKey, file: File) {
+    setPendingAssets((prev) => ({ ...prev, [slot]: file }))
+    setPendingAssetUrls((prev) => ({ ...prev, [slot]: URL.createObjectURL(file) }))
+    setIsDirty(true)
+    setSaved(false)
   }
 
-  async function handleAssetRemove(slot: AssetSlotKey) {
-    setError(null)
-    try {
-      const r = await deleteOrganizationAsset(slot)
-      setProfile((prev) => prev ? { ...prev, [`${slot}_path`]: (r.profile as any)[`${slot}_path`] } : r.profile)
-      if (slot === 'logo') refreshLogo(null)
-      if (updateHistory) {
-        await applyBrandingHistory()
-      }
-    } catch (e: any) {
-      setError(e.message)
-    } finally {
-      setRemoveConfirm(null)
-    }
+  function handleAssetRemove(slot: AssetSlotKey) {
+    setPendingAssets((prev) => ({ ...prev, [slot]: null }))
+    setPendingAssetUrls((prev) => {
+      const prevUrl = prev[slot]
+      if (prevUrl && prevUrl.startsWith('blob:')) URL.revokeObjectURL(prevUrl)
+      return { ...prev, [slot]: undefined }
+    })
+    setIsDirty(true)
+    setSaved(false)
+    setRemoveConfirm(null)
   }
+
+  const uploadInputRef = useRef<HTMLInputElement>(null)
 
   return (
     <div className="flex-1">
-      <BackLink />
-      <Topbar title="Organization Settings" subtitle="Branding shown on every generated document — quotation, BRD, SRS, and invoice." />
+      <Topbar showBack title="Organization Settings" subtitle="Branding shown on every generated document — quotation, BRD, SRS, and invoice." />
       <div className="p-8 max-w-3xl space-y-6">
         {error && <div className="text-sm text-coral-600 bg-coral-50 rounded-2xl px-4 py-3">{error}</div>}
 
@@ -198,7 +284,7 @@ export default function OrganizationSettings() {
                   )}
                   <button
                     disabled={saving}
-                    onClick={save}
+                    onClick={() => save(false)}
                     className="text-sm font-medium bg-brand-600 hover:bg-brand-700 text-white px-5 py-2 rounded-full disabled:bg-slate-200"
                   >
                     {saving ? 'Saving…' : 'Save Changes'}
@@ -213,34 +299,57 @@ export default function OrganizationSettings() {
                       {f.label}
                       {f.required && <span className="text-coral-600 ml-0.5">*</span>}
                     </label>
-                    {f.multiline ? (
-                      <textarea
-                        value={(profile[f.key] as string) || ''}
-                        placeholder={f.placeholder}
-                        maxLength={f.maxLength}
-                        rows={3}
-                        onChange={(e) => {
-                          setProfile({ ...profile, [f.key]: e.target.value })
-                          setSaved(false)
-                          setIsDirty(true)
-                          setFieldErrors((prev) => ({ ...prev, [f.key]: undefined }))
-                        }}
-                        className={`mt-1 w-full border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 resize-none ${fieldErrors[f.key] ? 'border-coral-300 focus:ring-coral-200' : 'border-slate-200 focus:ring-brand-300'}`}
-                      />
-                    ) : (
+                    <div className="relative">
+                      {f.multiline ? (
+                        <>
+                          <textarea
+                            value={(profile[f.key] as string) || ''}
+                            placeholder={f.placeholder}
+                            maxLength={f.maxLength}
+                            rows={3}
+                            onChange={(e) => {
+                              let val = e.target.value
+                              setProfile({ ...profile, [f.key]: val })
+                              setSaved(false)
+                              setIsDirty(true)
+                              setFieldErrors((prev) => ({ ...prev, [f.key]: undefined }))
+                            }}
+                            className={`mt-1 w-full border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 resize-none ${f.key === 'invoice_terms' ? 'pb-8' : ''} ${fieldErrors[f.key] || (f.key === 'invoice_terms' && ((profile[f.key] as string) || '').trim().split(/\s+/).filter(Boolean).length > 100) ? 'border-coral-300 focus:ring-coral-200' : 'border-slate-200 focus:ring-brand-300'}`}
+                          />
+                          {f.key === 'invoice_terms' && (() => {
+                            const val = (profile[f.key] as string) || ''
+                            const count = val.trim().split(/\s+/).filter(Boolean).length
+                            const isOver = count > 100
+                            return (
+                              <div
+                                className={`absolute bottom-3 right-3 text-[10px] font-medium transition-colors ${isOver ? 'text-coral-600 bg-coral-50 px-1.5 py-0.5 rounded flex items-center gap-1 shadow-sm' : 'text-slate-400'}`}
+                              >
+                                {isOver && (
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                                )}
+                                {count} / 100 words
+                              </div>
+                            )
+                          })()}
+                        </>
+                      ) : (
                       <input
-                        value={(profile[f.key] as string) || ''}
+                        value={
+                          f.key === 'phone' && profile[f.key]
+                            ? uiFormatPhone(profile[f.key] as string)
+                            : (profile[f.key] as string) || ''
+                        }
                         placeholder={f.placeholder}
                         maxLength={f.maxLength}
                         type={f.key === 'email' ? 'email' : f.key === 'phone' ? 'tel' : 'text'}
                         inputMode={f.key === 'phone' ? 'numeric' : undefined}
                         onChange={(e) => {
-                          const v =
-                            f.key === 'phone'
-                              ? e.target.value.replace(/\D/g, '')
-                              : f.key === 'gstin'
-                                ? formatGSTIN(e.target.value)
-                                : e.target.value
+                          let v = e.target.value
+                          if (f.key === 'phone') {
+                            v = uiFormatPhone(v)
+                          } else if (f.key === 'gstin') {
+                            v = formatGSTIN(v)
+                          }
                           setProfile({ ...profile, [f.key]: v })
                           setSaved(false)
                           setIsDirty(true)
@@ -249,6 +358,7 @@ export default function OrganizationSettings() {
                         className={`mt-1 w-full border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 ${fieldErrors[f.key] ? 'border-coral-300 focus:ring-coral-200' : 'border-slate-200 focus:ring-brand-300'}`}
                       />
                     )}
+                    </div>
                     {fieldErrors[f.key] && <p className="text-xs text-coral-600 mt-1">{fieldErrors[f.key]}</p>}
                   </div>
                 ))}
@@ -276,12 +386,38 @@ export default function OrganizationSettings() {
                         placeholder={f.placeholder}
                         maxLength={f.maxLength}
                         onChange={(e) => {
-                          setProfile({ ...profile, [f.key]: e.target.value })
+                          let v = e.target.value
+                          if (f.key === 'bank_name') {
+                            v = v.replace(/[^A-Za-z\s.]/g, '')
+                          }
+                          if (f.key === 'bank_account_number') {
+                            v = v.replace(/\D/g, '')
+                          }
+                          if (f.key === 'bank_ifsc') {
+                            let raw = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '')
+                            let formatted = ''
+                            for (let i = 0; i < raw.length && i < 11; i++) {
+                              if (i < 4) {
+                                if (/[A-Z]/.test(raw[i])) formatted += raw[i]
+                              } else if (i === 4) {
+                                if (raw[i] === '0' || raw[i] === 'O') {
+                                  formatted += '0'
+                                }
+                              } else {
+                                if (/[0-9]/.test(raw[i])) formatted += raw[i]
+                              }
+                            }
+                            v = formatted
+                          }
+                          
+                          setProfile({ ...profile, [f.key]: v })
                           setSaved(false)
                           setIsDirty(true)
+                          setFieldErrors((prev) => ({ ...prev, [f.key]: undefined }))
                         }}
-                        className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
+                        className={`mt-1 w-full border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 ${fieldErrors[f.key] ? 'border-coral-300 focus:ring-coral-200' : 'border-slate-200 focus:ring-brand-300'}`}
                       />
+                      {fieldErrors[f.key] && <p className="text-xs text-coral-600 mt-1">{fieldErrors[f.key]}</p>}
                     </div>
                   ))}
                 </div>
@@ -297,19 +433,19 @@ export default function OrganizationSettings() {
               <div className="grid grid-cols-3 gap-5">
                 <AssetSlot
                   label="Logo"
-                  path={profile.logo_path}
+                  src={pendingAssets.logo === null ? null : (pendingAssetUrls.logo || (profile.logo_path ? `/branding/${profile.logo_path}?t=${Date.now()}` : null))}
                   onUpload={(f) => handleAssetUpload('logo', f)}
                   onRemove={() => setRemoveConfirm('logo')}
                 />
                 <AssetSlot
                   label="Signature"
-                  path={profile.signature_path}
+                  src={pendingAssets.signature === null ? null : (pendingAssetUrls.signature || (profile.signature_path ? `/branding/${profile.signature_path}?t=${Date.now()}` : null))}
                   onUpload={(f) => handleAssetUpload('signature', f)}
                   onRemove={() => setRemoveConfirm('signature')}
                 />
                 <AssetSlot
                   label="Company Seal"
-                  path={profile.seal_path}
+                  src={pendingAssets.seal === null ? null : (pendingAssetUrls.seal || (profile.seal_path ? `/branding/${profile.seal_path}?t=${Date.now()}` : null))}
                   onUpload={(f) => handleAssetUpload('seal', f)}
                   onRemove={() => setRemoveConfirm('seal')}
                 />
@@ -349,18 +485,47 @@ export default function OrganizationSettings() {
         onConfirm={() => removeConfirm && handleAssetRemove(removeConfirm)}
         onCancel={() => setRemoveConfirm(null)}
       />
+
+      <ConfirmModal
+        isOpen={showBackConfirm}
+        title="Unsaved Changes"
+        message="You have unsaved changes. Would you like to save them before leaving?"
+        confirmText="Save & Leave"
+        cancelText="Discard & Leave"
+        onConfirm={async () => {
+          const success = await save(false)
+          if (success) {
+            setShowBackConfirm(false)
+            if (blocker.state === 'blocked') blocker.proceed()
+            else navigate(-1)
+          } else {
+            setShowBackConfirm(false)
+            if (blocker.state === 'blocked') blocker.reset()
+          }
+        }}
+        onCancel={() => {
+          discard()
+          setShowBackConfirm(false)
+          if (blocker.state === 'blocked') blocker.proceed()
+          else navigate(-1)
+        }}
+        onClose={() => {
+          setShowBackConfirm(false)
+          if (blocker.state === 'blocked') blocker.reset()
+        }}
+      />
     </div>
   )
 }
 
 function AssetSlot({
   label,
-  path,
+  src,
   onUpload,
   onRemove,
 }: {
   label: string
-  path: string | null
+  src: string | null
   onUpload: (f: File) => void
   onRemove: () => void
 }) {
@@ -369,11 +534,9 @@ function AssetSlot({
     <div>
       <div
         onClick={() => {
-          // An asset already occupies this slot — require explicit removal
-          // before a new one can be uploaded, instead of silently replacing it.
-          if (!path) inputRef.current?.click()
+          if (!src) inputRef.current?.click()
         }}
-        className={`relative aspect-square rounded-2xl bg-slate-50 border-2 border-dashed flex items-center justify-center overflow-hidden ${path ? 'border-slate-200' : 'border-slate-200 hover:border-brand-300 cursor-pointer'}`}
+        className={`relative aspect-square rounded-2xl bg-slate-50 border-2 border-dashed flex items-center justify-center overflow-hidden ${src ? 'border-slate-200' : 'border-slate-200 hover:border-brand-300 cursor-pointer'}`}
       >
         <input
           ref={inputRef}
@@ -384,17 +547,21 @@ function AssetSlot({
             const f = e.target.files?.[0]
             if (f) {
               const validTypes = ['image/jpeg', 'image/png', 'image/webp']
-              if (validTypes.includes(f.type)) {
-                onUpload(f)
-              } else {
+              if (!validTypes.includes(f.type)) {
                 alert('Please upload a valid image format (JPEG, PNG, or WEBP).')
+                return
               }
+              if (f.size > 5 * 1024 * 1024) {
+                alert('File size exceeds the 5MB limit. Please choose a smaller file.')
+                return
+              }
+              onUpload(f)
             }
           }}
         />
-        {path ? (
+        {src ? (
           <>
-            <img src={`/branding/${path}?t=${Date.now()}`} alt={label} className="w-full h-full object-contain p-3" />
+            <img src={src} alt={label} className="w-full h-full object-contain p-3" />
             <button
               onClick={(e) => {
                 e.stopPropagation()
@@ -410,6 +577,7 @@ function AssetSlot({
           <span className="text-xs text-slate-400 text-center px-2 flex flex-col gap-0.5">
             <span className="font-medium text-slate-500">Click to upload</span>
             <span className="text-[10px]">JPEG, PNG, WEBP</span>
+            <span className="text-[10px] font-medium text-slate-400/80 mt-0.5">Max 5MB</span>
           </span>
         )}
       </div>

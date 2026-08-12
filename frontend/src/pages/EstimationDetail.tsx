@@ -53,7 +53,7 @@ export default function EstimationDetail() {
 
   return (
     <div className="flex-1">
-      <Topbar title={result?.client_name || 'Estimation'} subtitle={result?.project_name} />
+      <Topbar showBack title={result?.client_name || 'Estimation'} subtitle={result?.project_name} />
       <div className="p-8">
         {error && <Card className="text-sm text-coral-600 bg-coral-50">{error}</Card>}
         {!result && !error && <p className="text-sm text-slate-400">Loading…</p>}

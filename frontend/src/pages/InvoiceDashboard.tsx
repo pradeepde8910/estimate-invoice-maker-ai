@@ -46,7 +46,7 @@ export default function InvoiceDashboard() {
 
   return (
     <div className="flex-1">
-      <Topbar title="Invoice Dashboard" subtitle="Revenue and payment status across every invoice." />
+      <Topbar showBack title="Invoice Dashboard" subtitle="Revenue and payment status across every invoice." />
       <div className="p-8 space-y-6">
         <div className="flex justify-end">
           <button
@@ -91,7 +91,7 @@ export default function InvoiceDashboard() {
                       </thead>
                       <tbody className="divide-y divide-slate-100">
                         {invoicedRecent.map((e) => (
-                          <tr key={e.base_name} className="hover:bg-slate-50 cursor-pointer" onClick={() => navigate(`/invoice/${e.base_name}`)}>
+                          <tr key={e.base_name} className="hover:bg-slate-50">
                             <td className="py-2.5 pr-4 text-slate-700">{e.client_name}</td>
                             <td className="py-2.5 pr-4 text-slate-500 text-xs">{e.invoice_meta?.invoice_number}</td>
                             <td className="py-2.5 pr-4 font-medium text-slate-800 tabular-nums">
@@ -102,7 +102,13 @@ export default function InvoiceDashboard() {
                                 {e.invoice_meta?.status ?? 'Draft'}
                               </span>
                             </td>
-                            <td className="py-2.5 pr-4 text-right">
+                            <td className="py-2.5 pr-4 text-right flex items-center justify-end gap-1">
+                              <button
+                                onClick={() => navigate(`/invoice/${e.base_name}`)}
+                                className="text-xs font-medium text-brand-600 bg-brand-50 hover:bg-brand-100 hover:text-brand-700 px-3 py-1.5 rounded-full transition-colors mr-1"
+                              >
+                                View
+                              </button>
                               <button
                                 onClick={(ev) => {
                                   ev.stopPropagation()
@@ -129,7 +135,10 @@ export default function InvoiceDashboard() {
                 </button>
               </Card>
               <Card title="Status Overview">
-                <DonutChart data={Object.entries(data.status_overview).map(([name, value]) => ({ name, value }))} />
+                <DonutChart 
+                  data={Object.entries(data.status_overview).map(([name, value]) => ({ name, value }))} 
+                  layout="vertical"
+                />
               </Card>
             </div>
           </>

@@ -54,7 +54,7 @@ export default function EstimationList() {
 
   return (
     <div className="flex-1">
-      <Topbar title="Estimations" subtitle="Every estimation, grouped by client." />
+      <Topbar showBack title="Estimations" subtitle="Every estimation, grouped by client." />
       <div className="p-8 space-y-6">
         <div className="flex items-center justify-end">
           {clients && clients.length > 0 && (
@@ -85,14 +85,8 @@ export default function EstimationList() {
                 <ul className="divide-y divide-slate-100">
                   {c.estimations.map((e) => (
                     <li key={e.base_name}>
-                      <div
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => navigate(`/estimation/${e.base_name}`)}
-                        onKeyDown={(ev) => ev.key === 'Enter' && navigate(`/estimation/${e.base_name}`)}
-                        className="w-full flex items-center justify-between py-3 px-3 -mx-3 rounded-xl hover:bg-slate-50 group transition-colors cursor-pointer"
-                      >
-                        <span className="text-sm font-medium text-slate-700 group-hover:text-brand-700 text-left truncate max-w-md">
+                      <div className="w-full flex items-center justify-between py-3 px-3 -mx-3 rounded-xl hover:bg-slate-50 transition-colors">
+                        <span className="text-sm font-medium text-slate-700 text-left truncate max-w-md">
                           {e.project_name}
                         </span>
                         <div className="flex items-center gap-3 shrink-0">
@@ -104,10 +98,7 @@ export default function EstimationList() {
                           )}
                           <div className="flex items-center gap-1 ml-2">
                             <button
-                              onClick={(ev) => {
-                                ev.stopPropagation()
-                                navigate(`/estimation/${e.base_name}`)
-                              }}
+                              onClick={() => navigate(`/estimation/${e.base_name}`)}
                               className="text-xs font-medium text-brand-600 bg-brand-50 hover:bg-brand-100 hover:text-brand-700 px-4 py-2 rounded-full transition-colors"
                             >
                               View

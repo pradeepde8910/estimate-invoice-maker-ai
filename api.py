@@ -27,7 +27,7 @@ import hmac
 import hashlib
 import time
 import base64
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -459,7 +459,7 @@ async def create_job(
         "log": [],
         "error": None,
         "source_name": file.filename if file else (url or (text[:60] if text else "")),
-        "created_at": datetime.now().isoformat(),
+        "created_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
     job_task = asyncio.create_task(_run_job(job_id, raw_input, generate_brd, generate_srs))
     JOBS[job_id]["_task"] = job_task
@@ -827,6 +827,8 @@ async def upload_organization_asset(slot: str, request: Request, file: UploadFil
     if slot not in ("logo", "signature", "seal"):
         raise HTTPException(400, "Unknown branding asset slot")
     content = await file.read()
+    if len(content) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File size exceeds the 5MB limit.")
     try:
         profile = organization.save_branding_file(slot, file.filename or f"{slot}.png", content)
     except organization.InvalidBrandingAssetError as e:

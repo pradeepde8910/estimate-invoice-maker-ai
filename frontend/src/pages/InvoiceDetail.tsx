@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import Topbar from '../components/Topbar'
 import Card from '../components/Card'
+import ConfirmModal from '../components/ConfirmModal'
 import HtmlFrame, { type HtmlFrameHandle } from '../components/HtmlFrame'
 import { inr } from '../components/EstimationResult'
 import {
@@ -33,6 +34,7 @@ export default function InvoiceDetail() {
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [pendingStatus, setPendingStatus] = useState<InvoiceStatus | null>(null)
   const frameRef = useRef<HtmlFrameHandle>(null)
 
   useEffect(() => {
@@ -110,7 +112,7 @@ export default function InvoiceDetail() {
 
   return (
     <div className="flex-1">
-      <Topbar title="Invoice" subtitle={`${clientName} · ${projectName}`} />
+      <Topbar showBack title="Invoice" subtitle={`${clientName} · ${projectName}`} />
       <div className="p-8 max-w-4xl space-y-6">
         {error && <div className="text-sm text-coral-600 bg-coral-50 rounded-2xl px-4 py-3">{error}</div>}
 
@@ -167,12 +169,19 @@ export default function InvoiceDetail() {
                 <span className="text-sm text-slate-500">Status</span>
                 <select
                   value={invoiceMeta?.status ?? 'Draft'}
-                  onChange={(e) => handleStatusChange(e.target.value as InvoiceStatus)}
+                  onChange={(e) => {
+                    const newStatus = e.target.value as InvoiceStatus
+                    if (isDraft && newStatus !== 'Draft') {
+                      setPendingStatus(newStatus)
+                    } else {
+                      handleStatusChange(newStatus)
+                    }
+                  }}
                   className={`text-xs font-semibold px-3 py-1.5 rounded-full border-none focus:outline-none focus:ring-2 focus:ring-brand-300 ${
                     STATUS_TONE[invoiceMeta?.status ?? 'Draft']
                   }`}
                 >
-                  {STATUSES.map((s) => (
+                  {STATUSES.filter(s => isDraft || s !== 'Draft').map((s) => (
                     <option key={s} value={s}>
                       {s}
                     </option>
@@ -239,6 +248,20 @@ export default function InvoiceDetail() {
           </>
         )}
       </div>
+
+      <ConfirmModal
+        isOpen={pendingStatus !== null}
+        title="Lock Invoice?"
+        message={`Once you mark this invoice as ${pendingStatus}, it can never be reverted back to Draft. It will be permanently locked from further edits.`}
+        confirmText={`Mark as ${pendingStatus}`}
+        cancelText="Cancel"
+        onConfirm={() => {
+          if (pendingStatus) handleStatusChange(pendingStatus)
+          setPendingStatus(null)
+        }}
+        onCancel={() => setPendingStatus(null)}
+        onClose={() => setPendingStatus(null)}
+      />
     </div>
   )
 }

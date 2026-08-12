@@ -13,26 +13,40 @@ type Mode = 'file' | 'url' | 'text'
 
 function formatDuration(ms: number): string {
   const totalSeconds = Math.max(0, Math.round(ms / 1000))
-  const minutes = Math.floor(totalSeconds / 60)
-  const seconds = totalSeconds % 60
-  if (minutes === 0) return `${seconds}s`
-  return `${minutes}m ${seconds}s`
+  if (totalSeconds < 30) return 'less than a minute'
+  
+  const minutes = Math.round(totalSeconds / 60)
+  if (minutes <= 1) return 'about a minute'
+  
+  return `around ${minutes} mins`
 }
 
-/** Rough ETA: extrapolates from how long the completed steps took so far.
- * Only meaningful once at least one step has finished — before that there's
- * no data to extrapolate from. */
+/** Rough ETA: Uses a blended average of actual time and a 20s baseline to ensure smooth, robust UX. */
 function estimateRemaining(job: Job): string | null {
   if (!job.created_at) return null
-  const completedSteps = job.status === 'queued' ? 0 : job.step_index + 1
-  if (completedSteps <= 0 || completedSteps >= job.steps.length) return null
+  
+  const completedSteps = job.status === 'queued' ? 0 : job.step_index
+  if (completedSteps >= job.steps.length) return null
 
-  const elapsedMs = Date.now() - new Date(job.created_at).getTime()
-  if (elapsedMs <= 0) return null
+  const createdTime = new Date(job.created_at).getTime()
+  if (isNaN(createdTime)) return null
+  const elapsedMs = Date.now() - createdTime
+  if (isNaN(elapsedMs) || elapsedMs <= 0) return null
 
-  const avgPerStepMs = elapsedMs / completedSteps
+  const DEFAULT_STEP_MS = 20000 // 20s baseline per step
   const remainingSteps = job.steps.length - completedSteps
-  return formatDuration(avgPerStepMs * remainingSteps)
+
+  if (completedSteps <= 0) {
+    return formatDuration(remainingSteps * DEFAULT_STEP_MS)
+  }
+
+  // Cap actual avg at 40s to prevent wild spikes if one step stalls
+  const actualAvg = Math.min(elapsedMs / completedSteps, 40000)
+  
+  // Blend actual average and default to smooth out the ETA and prevent jumping
+  const blendedAvg = (actualAvg * completedSteps + DEFAULT_STEP_MS * remainingSteps) / job.steps.length
+  
+  return formatDuration(blendedAvg * remainingSteps)
 }
 
 export default function NewEstimation() {
@@ -69,7 +83,7 @@ export default function NewEstimation() {
 
   return (
     <div className="flex-1">
-      <Topbar title="New Estimation" subtitle="Upload a requirement document to get an AI-generated cost & timeline estimate." />
+      <Topbar showBack title="New Estimation" subtitle="Upload a requirement document to get an AI-generated cost & timeline estimate." />
       <div className="p-8 space-y-6">
         {!showForm && (
           <div className="flex items-center justify-between">
