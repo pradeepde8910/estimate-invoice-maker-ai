@@ -35,6 +35,7 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse, Response, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.openapi.utils import get_openapi
 from pydantic import BaseModel, Field, field_validator
 
 import config
@@ -204,6 +205,13 @@ async def auth_middleware(request: Request, call_next):
     # Public endpoints that don't require a Bearer token
     PUBLIC_PATHS = {"/api/auth/login", "/api/auth/validate", "/api/auth/branding"}
     if path.startswith("/api") and path not in PUBLIC_PATHS and request.method != "OPTIONS":
+        # Allow QA testing scripts to bypass JWT via static API key
+        api_key = request.headers.get("X-API-Key")
+        if api_key is not None:
+            if config.QA_TEST_API_KEY and hmac.compare_digest(api_key, config.QA_TEST_API_KEY):
+                return await call_next(request)
+            return JSONResponse(status_code=401, content={"detail": "Invalid API Key or QA mode disabled."})
+
         auth_header = request.headers.get("Authorization")
         if not auth_header or not auth_header.startswith("Bearer "):
             return JSONResponse(status_code=401, content={"detail": "Unauthorized. Please log in."})
@@ -213,6 +221,44 @@ async def auth_middleware(request: Request, call_next):
 
     response = await call_next(request)
     return response
+
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+    openapi_schema = get_openapi(
+        title="Pixous Technologies API",
+        version="1.0.0",
+        description="API with JWT and QA API Key authentication",
+        routes=app.routes,
+    )
+    if "components" not in openapi_schema:
+        openapi_schema["components"] = {}
+    openapi_schema["components"]["securitySchemes"] = {
+        "BearerAuth": {
+            "type": "http",
+            "scheme": "bearer",
+            "bearerFormat": "JWT",
+        },
+        "ApiKeyAuth": {
+            "type": "apiKey",
+            "in": "header",
+            "name": "X-API-Key",
+        }
+    }
+    
+    PUBLIC_PATHS = {"/api/auth/login", "/api/auth/validate", "/api/auth/branding"}
+    for path in openapi_schema.get("paths", {}):
+        if path.startswith("/api") and path not in PUBLIC_PATHS:
+            for method in openapi_schema["paths"][path]:
+                openapi_schema["paths"][path][method]["security"] = [
+                    {"BearerAuth": []},
+                    {"ApiKeyAuth": []},
+                ]
+    
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+app.openapi = custom_openapi
 
 
 # allow_credentials=False deliberately: auth is a Bearer token in the
@@ -485,6 +531,35 @@ async def get_job(job_id: str):
     }
 
 
+@app.get("/api/jobs/{job_id}/wait")
+async def wait_for_job(job_id: str, timeout: int = 90):
+    """
+    Synchronously wait for a job to complete. 
+    Useful for testing tools like JMeter that prefer a single blocking request over polling.
+    Will return early if timeout is reached.
+    """
+    job = JOBS.get(job_id)
+    if not job:
+        raise HTTPException(404, "Job not found")
+        
+    start_time = time.time()
+    while True:
+        if job["status"] in ("complete", "failed", "cancelled"):
+            return {
+                "id": job["id"],
+                "status": job["status"],
+                "step_index": job["step_index"],
+                "error": job.get("error"),
+                "result": job.get("result"),
+                "base_name": job.get("base_name")
+            }
+            
+        if time.time() - start_time > timeout:
+            return {"id": job["id"], "status": "timeout", "message": f"Job still {job['status']} after {timeout} seconds"}
+            
+        await asyncio.sleep(2)
+
+
 @app.post("/api/jobs/{job_id}/cancel")
 async def cancel_job(job_id: str):
     job = JOBS.get(job_id)
@@ -504,6 +579,7 @@ async def cancel_job(job_id: str):
 
 @app.get("/api/jobs/{job_id}/document/{doc_type}", response_class=PlainTextResponse)
 async def get_job_document(job_id: str, doc_type: str):
+    doc_type = doc_type.lower()
     job = JOBS.get(job_id)
     if not job or job.get("status") != "complete":
         raise HTTPException(404, "Job not ready")
@@ -663,6 +739,7 @@ async def get_document_data(base_name: str):
 
 @app.get("/api/documents/{base_name}/{doc_type}", response_class=PlainTextResponse)
 async def get_document_file(base_name: str, doc_type: str):
+    doc_type = doc_type.lower()
     if doc_type not in ("quotation", "brd", "srs", "invoice"):
         raise HTTPException(400, "Unknown document type")
     
@@ -1176,6 +1253,7 @@ class DocumentContentUpdate(BaseModel):
 
 @app.put("/api/documents/{base_name}/{doc_type}")
 async def update_document_content(base_name: str, doc_type: str, payload: DocumentContentUpdate):
+    doc_type = doc_type.lower()
     if doc_type not in ("quotation", "brd", "srs", "invoice"):
         raise HTTPException(400, "Unknown document type")
 
@@ -1234,6 +1312,7 @@ def test_pdf():
 
 @app.get("/api/documents/{base_name}/{doc_type}/pdf")
 def download_document_pdf(base_name: str, doc_type: str):
+    doc_type = doc_type.lower()
     if doc_type not in ("quotation", "brd", "srs", "invoice"):
         raise HTTPException(400, "Unknown document type")
     

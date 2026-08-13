@@ -36,6 +36,8 @@ if not JWT_SECRET:
         "back to a value that used to be hardcoded in source."
     )
 
+QA_TEST_API_KEY = os.getenv("QA_TEST_API_KEY", "")
+
 # ─── Database Settings ────────────────────────────────────────────────────────
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///pixous.db").strip()
 

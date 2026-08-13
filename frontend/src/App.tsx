@@ -16,10 +16,11 @@ import DocumentView from './pages/DocumentView'
 import Login from './pages/Login'
 import ProtectedRoute from './components/ProtectedRoute'
 import { JobProvider } from './JobContext'
+import ErrorBoundary from './components/ErrorBoundary'
 
 const router = createBrowserRouter(
   createRoutesFromElements(
-    <>
+    <Route errorElement={<ErrorBoundary />}>
       <Route path="/login" element={<Login />} />
 
       <Route element={<ProtectedRoute />}>
@@ -44,7 +45,9 @@ const router = createBrowserRouter(
         <Route path="/organization" element={<OrganizationSettings />} />
         <Route path="/rate-card" element={<RateCardPage />} />
       </Route>
-    </>
+
+      <Route path="*" element={<ErrorBoundary />} />
+    </Route>
   )
 )
 
