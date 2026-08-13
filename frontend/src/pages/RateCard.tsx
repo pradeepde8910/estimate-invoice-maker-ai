@@ -44,6 +44,10 @@ export default function RateCardPage() {
       setAddError('A role with a similar name already exists')
       return
     }
+    if (!newRoleRate || newRoleRate <= 0) {
+      setAddError('Please enter a valid hourly rate greater than 0')
+      return
+    }
     setDraft({ ...draft, [roleKey]: { rate_per_hour: newRoleRate, label, is_custom: true } })
     setNewRoleLabel('')
     setNewRoleRate(0)
@@ -132,11 +136,7 @@ export default function RateCardPage() {
                       />
                       <span className="text-slate-400 text-xs">/hr</span>
                     </div>
-                    {r.is_custom ? (
-                      <button onClick={() => handleRemoveRole(key)} className="text-slate-300 hover:text-coral-500 text-lg w-6 flex justify-center pb-1">×</button>
-                    ) : (
-                      <div className="w-6" /> // spacer
-                    )}
+                    <button onClick={() => handleRemoveRole(key)} className="text-slate-300 hover:text-coral-500 text-lg w-6 flex justify-center pb-1" title="Remove role">×</button>
                   </div>
                 </li>
               ))}

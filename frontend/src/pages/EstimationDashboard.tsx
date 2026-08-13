@@ -4,7 +4,7 @@ import Topbar from '../components/Topbar'
 import Card from '../components/Card'
 import StatCard from '../components/StatCard'
 import HeroStat from '../components/HeroStat'
-import { inr } from '../components/EstimationResult'
+import { inr, compactInr } from '../components/EstimationResult'
 import ConfirmModal from '../components/ConfirmModal'
 import { getAnalytics, deleteEstimation } from '../api/client'
 import type { Analytics, DocumentSummary } from '../api/types'
@@ -76,8 +76,8 @@ export default function EstimationDashboard() {
         ) : (
           <>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
-              <HeroStat tone="coral" label="Total Project Value" value={inr(data.total_project_value)} sub="All estimations" />
-              <HeroStat tone="mint" label="Average Estimation" value={inr(data.average_estimation_value)} sub="Per project" />
+              <HeroStat tone="coral" label="Total Project Value" value={compactInr(data.total_project_value)} sub="All estimations" />
+              <HeroStat tone="mint" label="Average Estimation" value={compactInr(data.average_estimation_value)} sub="Per project" />
               <Card className="flex flex-col justify-center">
                 <StatCard label="Today" value={data.today_count} sub="Estimations created" />
               </Card>

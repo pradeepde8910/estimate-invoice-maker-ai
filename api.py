@@ -1383,16 +1383,15 @@ async def update_rate_card(payload: RateCardUpdate, request: Request):
                     "is_custom": key not in config.SYSTEM_ROLE_KEYS
                 }
                 
-        # Handle deletions (any active custom role not in payload)
-        active_custom_roles = db.query(RateCard).filter(
-            RateCard.is_active == True,
-            ~RateCard.role_key.in_(config.SYSTEM_ROLE_KEYS)
+        # Handle deletions (any active role not in payload)
+        active_roles = db.query(RateCard).filter(
+            RateCard.is_active == True
         ).all()
-        for custom_role in active_custom_roles:
-            if custom_role.role_key not in payload.rates:
-                custom_role.is_active = False
-                custom_role.effective_to = datetime.now()
-                config.DEVELOPER_RATES.pop(custom_role.role_key, None)
+        for role in active_roles:
+            if role.role_key not in payload.rates:
+                role.is_active = False
+                role.effective_to = datetime.now()
+                config.DEVELOPER_RATES.pop(role.role_key, None)
 
         db.commit()
     except HTTPException:

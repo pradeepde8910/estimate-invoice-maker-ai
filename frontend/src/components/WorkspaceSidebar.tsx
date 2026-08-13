@@ -89,7 +89,7 @@ export default function WorkspaceSidebar({ workspace }: { workspace: 'estimation
       </div>
 
       <div className="m-4 rounded-2xl bg-slate-50 p-3 flex items-center gap-3">
-        <div className="w-9 h-9 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center font-semibold">
+        <div title="Pixous Admin Profile" className="w-9 h-9 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center font-semibold">
           PA
         </div>
         <div className="text-sm min-w-0">

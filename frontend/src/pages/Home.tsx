@@ -41,7 +41,7 @@ export default function Home() {
           >
             <LogoutIcon className="w-5 h-5" />
           </button>
-          <div className="w-9 h-9 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center font-semibold text-sm">
+          <div title="Pixous Admin Profile" className="w-9 h-9 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center font-semibold text-sm">
             PA
           </div>
         </div>

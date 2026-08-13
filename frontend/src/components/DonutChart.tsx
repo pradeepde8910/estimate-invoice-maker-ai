@@ -24,11 +24,13 @@ export default function DonutChart({
   valueFormatter,
   centerLabel,
   layout = 'horizontal',
+  valueLabel = 'Amount',
 }: {
   data: DonutDatum[]
   valueFormatter?: (v: number) => string
   centerLabel?: { value: string; label: string }
   layout?: 'horizontal' | 'vertical'
+  valueLabel?: string
 }) {
   const sorted = [...data].filter((d) => d.value > 0).sort((a, b) => b.value - a.value)
   const MAX_SLOTS = 8
@@ -103,7 +105,7 @@ export default function DonutChart({
           <thead className="bg-slate-50 border-b border-slate-200 text-[11px] uppercase tracking-wider text-slate-500 font-semibold">
             <tr>
               <th className="px-4 py-3">Label</th>
-              <th className="px-4 py-3 text-right">Amount</th>
+              <th className="px-4 py-3 text-right">{valueLabel}</th>
               <th className="px-4 py-3 text-right">%</th>
             </tr>
           </thead>

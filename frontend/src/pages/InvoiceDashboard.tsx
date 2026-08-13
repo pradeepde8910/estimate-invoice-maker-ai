@@ -6,7 +6,7 @@ import StatCard from '../components/StatCard'
 import HeroStat from '../components/HeroStat'
 import DonutChart from '../components/DonutChart'
 import ConfirmModal from '../components/ConfirmModal'
-import { inr } from '../components/EstimationResult'
+import { inr, compactInr } from '../components/EstimationResult'
 import { getAnalytics, deleteInvoice } from '../api/client'
 import type { Analytics, DocumentSummary } from '../api/types'
 
@@ -63,8 +63,8 @@ export default function InvoiceDashboard() {
         ) : (
           <>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
-              <HeroStat tone="mint" label="Revenue (Paid)" value={inr(data.revenue_paid)} sub="Collected" />
-              <HeroStat tone="coral" label="Revenue (Pending)" value={inr(data.revenue_pending)} sub="Awaiting payment" />
+              <HeroStat tone="mint" label="Revenue (Paid)" value={compactInr(data.revenue_paid)} sub="Collected" />
+              <HeroStat tone="coral" label="Revenue (Pending)" value={compactInr(data.revenue_pending)} sub="Awaiting payment" />
               <Card className="flex flex-col justify-center">
                 <StatCard label="Invoiced" value={data.invoiced_count} sub="Estimations" />
               </Card>
@@ -138,6 +138,7 @@ export default function InvoiceDashboard() {
                 <DonutChart 
                   data={Object.entries(data.status_overview).map(([name, value]) => ({ name, value }))} 
                   layout="vertical"
+                  valueLabel="Count"
                 />
               </Card>
             </div>
