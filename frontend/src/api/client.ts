@@ -230,12 +230,18 @@ export async function getInvoice(baseName: string): Promise<{ invoice_html: stri
 
 export async function updateInvoiceStatus(
   baseName: string,
-  status: InvoiceStatus
+  status: InvoiceStatus,
+  amountPaid?: number,
+  paidOn?: string
 ): Promise<{ invoice_meta: InvoiceMeta; invoice_html: string }> {
+  const body: any = { status }
+  if (amountPaid !== undefined) body.amount_paid = amountPaid
+  if (paidOn) body.paid_on = paidOn
+
   const res = await fetch(`${BASE}/estimations/${encodeURIComponent(baseName)}/invoice/status`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ status }),
+    body: JSON.stringify(body),
   })
   return json(res)
 }

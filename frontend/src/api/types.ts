@@ -89,7 +89,7 @@ export interface Job {
   created_at: string | null
 }
 
-export type InvoiceStatus = 'Draft' | 'Sent' | 'Paid' | 'Cancelled'
+export type InvoiceStatus = 'Draft' | 'Sent' | 'Paid' | 'Partially Paid' | 'Overdue' | 'Cancelled'
 
 export interface InvoiceMeta {
   invoice_number: string
@@ -99,6 +99,8 @@ export interface InvoiceMeta {
   subtotal: number
   tax_amount: number
   total_due: number
+  amount_paid: number
+  paid_on: string | null
   client_name: string
   project_name: string
   status: InvoiceStatus

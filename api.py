@@ -150,8 +150,10 @@ class InvoicePatch(BaseModel):
     discount: Optional[float] = None
     total: Optional[float] = None
     status: Optional[str] = None
+    amount_paid: Optional[float] = None
+    paid_on: Optional[str] = None
 
-    @field_validator('subtotal', 'gst_amount', 'discount', 'total')
+    @field_validator('subtotal', 'gst_amount', 'discount', 'total', 'amount_paid')
     @classmethod
     def validate_positive(cls, v):
         if v is not None and v < 0:
@@ -651,6 +653,7 @@ async def list_documents():
                         "tax_amount": invoice_row.gst_amount,
                         "discount": invoice_row.discount,
                         "total_due": invoice_row.total,
+                        "amount_paid": invoice_row.amount_paid,
                         "status": invoice_row.status,
                         "due_date": invoice_row.due_date.strftime("%Y-%m-%d") if invoice_row.due_date else None,
                         "paid_on": invoice_row.paid_on.strftime("%Y-%m-%d") if invoice_row.paid_on else None,
@@ -1223,6 +1226,9 @@ _STATUS_COLORS = {
 
 class InvoiceStatusUpdate(BaseModel):
     status: str
+    amount_paid: Optional[float] = None
+    paid_on: Optional[str] = None
+
 
 
 @app.put("/api/estimations/{base_name}/invoice/status")
@@ -1238,23 +1244,42 @@ async def update_invoice_status(base_name: str, payload: InvoiceStatusUpdate, re
         inv = db.query(Invoice).filter(Invoice.estimation_id == base_name).order_by(Invoice.created_at.desc()).first()
         if inv:
             inv.status = payload.status
-            if payload.status == "Paid":
+            if payload.amount_paid is not None:
+                inv.amount_paid = payload.amount_paid
+            
+            if payload.paid_on:
+                inv.paid_on = datetime.strptime(payload.paid_on, "%Y-%m-%d")
+            elif payload.status == "Paid":
                 inv.paid_on = datetime.now()
+                if not inv.amount_paid or inv.amount_paid < inv.total:
+                    inv.amount_paid = inv.total
             else:
                 inv.paid_on = None
             
-            # Update HTML badge in DB
-            bg, fg = _STATUS_COLORS.get(payload.status, _STATUS_COLORS["Draft"])
-            content = inv.invoice_html or ""
-            new_content, count = re.subn(
-                r'(<div class="badge" style="background:)[^;]+;color:[^;"]+;("[^>]*>)[^<]*(</div>)',
-                rf"\g<1>{bg};color:{fg};\g<2>{payload.status}\g<3>",
-                content,
-            )
-            if count:
-                inv.invoice_html = new_content
-            new_html = inv.invoice_html
+            # Since amount_paid and paid_on affect the table structure (adding new rows),
+            # we need to rebuild the invoice HTML to properly display them.
+            est = db.query(Estimation).filter(Estimation.id == base_name).first()
+            if est and est.raw_pipeline_json:
+                from invoice_builder import build_invoice
+                data = dict(est.raw_pipeline_json)
+                profile = organization.load_profile()
+                tax_percentage = (inv.gst_amount / inv.subtotal * 100) if inv.subtotal > 0 else 18.0
+                due_days = (inv.due_date - inv.created_at).days if inv.due_date and inv.created_at else 15
+                
+                html, _ = build_invoice(
+                    data,
+                    profile,
+                    invoice_number=inv.invoice_number,
+                    tax_percentage=tax_percentage,
+                    due_days=due_days,
+                    invoice_date=inv.created_at.isoformat() if inv.created_at else None,
+                    status=inv.status,
+                    amount_paid=inv.amount_paid or 0.0,
+                    paid_on=inv.paid_on.strftime("%b %d, %Y") if inv.paid_on else None
+                )
+                inv.invoice_html = html
             
+            new_html = inv.invoice_html
             # Update estimation metadata
             est = db.query(Estimation).filter(Estimation.id == base_name).first()
             if est and est.raw_pipeline_json:
@@ -1750,12 +1775,51 @@ async def patch_invoice(id: str, payload: InvoicePatch, request: Request):
             inv.status = payload.status
             if payload.status == "Paid":
                 inv.paid_on = datetime.utcnow()
-            else:
+                if not inv.amount_paid or inv.amount_paid < inv.total:
+                    changes["amount_paid"] = {"before": inv.amount_paid, "after": inv.total}
+                    inv.amount_paid = inv.total
+            elif payload.status == "Draft":
                 inv.paid_on = None
-                
+
+        if payload.amount_paid is not None and inv.amount_paid != payload.amount_paid:
+            changes["amount_paid"] = {"before": inv.amount_paid, "after": payload.amount_paid}
+            inv.amount_paid = payload.amount_paid
+
+        if payload.paid_on is not None:
+            try:
+                new_paid_on = datetime.fromisoformat(payload.paid_on.replace("Z", "+00:00")) if "T" in payload.paid_on else datetime.strptime(payload.paid_on, "%Y-%m-%d")
+                if inv.paid_on != new_paid_on:
+                    changes["paid_on"] = {"before": inv.paid_on.isoformat() if inv.paid_on else None, "after": new_paid_on.isoformat() if new_paid_on else None}
+                    inv.paid_on = new_paid_on
+            except ValueError:
+                pass
+
         if changes:
             # Save audit log
             from db import AuditLog
+            from invoice_builder import build_invoice
+            
+            # Regenerate invoice HTML if needed
+            est = db.query(Estimation).filter(Estimation.id == inv.estimation_id).first()
+            if est and est.raw_pipeline_json:
+                data = dict(est.raw_pipeline_json)
+                profile = organization.load_profile()
+                tax_percentage = (inv.gst_amount / inv.subtotal * 100) if inv.subtotal > 0 else 18.0
+                due_days = (inv.due_date - inv.created_at).days if inv.due_date and inv.created_at else 15
+                
+                html, meta = build_invoice(
+                    data,
+                    profile,
+                    invoice_number=inv.invoice_number,
+                    tax_percentage=tax_percentage,
+                    due_days=due_days,
+                    invoice_date=inv.created_at.isoformat() if inv.created_at else None,
+                    status=inv.status,
+                    amount_paid=inv.amount_paid or 0.0,
+                    paid_on=inv.paid_on.strftime("%b %d, %Y") if inv.paid_on else None
+                )
+                inv.invoice_html = html
+
             audit = AuditLog(
                 user_id=user_id,
                 action="UPDATE_INVOICE",
@@ -1777,6 +1841,7 @@ async def patch_invoice(id: str, payload: InvoicePatch, request: Request):
             "gst_amount": inv.gst_amount,
             "discount": inv.discount,
             "total": inv.total,
+            "amount_paid": inv.amount_paid,
             "status": inv.status,
             "paid_on": inv.paid_on.isoformat() if inv.paid_on else None
         }

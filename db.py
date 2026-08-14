@@ -130,7 +130,8 @@ class Invoice(Base):
     gst_amount = Column(Float, default=0.0)
     discount = Column(Float, default=0.0)
     total = Column(Float, default=0.0)
-    status = Column(String(50), default="Draft")  # Draft, Sent, Paid, Overdue, Cancelled
+    amount_paid = Column(Float, default=0.0)
+    status = Column(String(50), default="Draft")  # Draft, Sent, Paid, Partially Paid, Overdue, Cancelled
     due_date = Column(DateTime, nullable=False)
     paid_on = Column(DateTime, nullable=True)
     payment_mode = Column(String(50), nullable=True)
@@ -277,6 +278,8 @@ def _run_migrations():
             ("organization_profiles", "bank_account_number", "VARCHAR(100)"),
             ("organization_profiles", "bank_ifsc",       "VARCHAR(50)"),
             ("organization_profiles", "bank_branch",     "VARCHAR(100)"),
+            # invoices: payment columns
+            ("invoices", "amount_paid", "FLOAT DEFAULT 0.0"),
             # branding_assets table columns (new table, handled by create_all)
         ]
         for table, col, col_type in migrations:

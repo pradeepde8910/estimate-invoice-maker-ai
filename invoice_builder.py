@@ -29,6 +29,7 @@ STATUS_COLORS = {
     "Draft": ("#FEF3C7", "#92400E"),
     "Sent": ("#DBEAFE", "#1E40AF"),
     "Paid": ("#DCFCE7", "#166534"),
+    "Partially Paid": ("#FEF08A", "#854D0E"),
     "Overdue": ("#FEE2E2", "#991B1B"),
     "Cancelled": ("#E2E8F0", "#475569"),
 }
@@ -93,6 +94,8 @@ def build_invoice(
     due_days: int = 15,
     invoice_date: str | None = None,
     status: str = "Draft",
+    amount_paid: float = 0.0,
+    paid_on: str | None = None,
 ) -> tuple[str, dict]:
     """Build a styled HTML invoice from estimation data. Returns (html, invoice_meta)."""
     analysis = data.get("analysis") or {}
@@ -111,6 +114,12 @@ def build_invoice(
     subtotal = estimation.get("grand_total", 0)
     tax_amount = subtotal * (tax_percentage / 100)
     total_due = subtotal + tax_amount
+    balance_due = max(0.0, total_due - amount_paid)
+    
+    if amount_paid > 0 and balance_due > 0 and status != "Overdue":
+        status = "Partially Paid"
+    elif amount_paid > 0 and balance_due == 0:
+        status = "Paid"
 
     # ── Line items ──
     rows_html = []
@@ -183,11 +192,14 @@ def build_invoice(
     # ── Client meta (only fields we actually have) ──
     client_meta_html = _meta_table([("Project:", project_name)])
 
-    invoice_meta_html = _meta_table([
+    invoice_meta_list = [
         ("Invoice Date:", now.strftime("%b %d, %Y")),
         ("Due Date:", due.strftime("%b %d, %Y")),
         ("Payment Terms:", f"NET {due_days}"),
-    ])
+    ]
+    if paid_on:
+        invoice_meta_list.append(("Payment Initiated:", paid_on))
+    invoice_meta_html = _meta_table(invoice_meta_list)
 
     legal_bits = []
     if business_profile.get("gstin"):
@@ -288,6 +300,8 @@ def build_invoice(
                     <tr><td>Subtotal</td><td class="text-right">{_inr(subtotal)}</td></tr>
                     <tr><td>GST ({tax_percentage:.0f}%)</td><td class="text-right">{_inr(tax_amount)}</td></tr>
                     <tr class="grand-total"><td>Grand Total (INR)</td><td class="text-right">{_inr(total_due)}</td></tr>
+                    {f'<tr><td style="padding-top:10px; color:#166534;">Amount Paid</td><td class="text-right" style="padding-top:10px; color:#166534;">-{_inr(amount_paid)}</td></tr>' if amount_paid > 0 else ''}
+                    {f'<tr class="grand-total"><td>Balance Due</td><td class="text-right">{_inr(balance_due)}</td></tr>' if amount_paid > 0 else ''}
                 </table>
             </td>
         </tr></table>
@@ -321,6 +335,9 @@ def build_invoice(
         "client_name": client_name,
         "project_name": project_name,
         "status": status,
+        "amount_paid": amount_paid,
+        "balance_due": balance_due,
+        "paid_on": paid_on,
     }
 
     return html, invoice_meta

@@ -15,11 +15,13 @@ import {
 } from '../api/client'
 import type { InvoiceMeta, InvoiceStatus } from '../api/types'
 
-const STATUSES: InvoiceStatus[] = ['Draft', 'Sent', 'Paid', 'Cancelled']
+const STATUSES: InvoiceStatus[] = ['Draft', 'Sent', 'Partially Paid', 'Paid', 'Overdue', 'Cancelled']
 const STATUS_TONE: Record<InvoiceStatus, string> = {
   Draft: 'bg-slate-100 text-slate-600',
   Sent: 'bg-blue-100 text-blue-700',
+  'Partially Paid': 'bg-yellow-100 text-yellow-800',
   Paid: 'bg-green-100 text-green-700',
+  Overdue: 'bg-red-100 text-red-700',
   Cancelled: 'bg-slate-100 text-slate-500',
 }
 
@@ -35,6 +37,8 @@ export default function InvoiceDetail() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pendingStatus, setPendingStatus] = useState<InvoiceStatus | null>(null)
+  const [paymentAmount, setPaymentAmount] = useState<number>(0)
+  const [paymentDate, setPaymentDate] = useState<string>(new Date().toISOString().split('T')[0])
   const frameRef = useRef<HtmlFrameHandle>(null)
 
   useEffect(() => {
@@ -68,7 +72,13 @@ export default function InvoiceDetail() {
     if (!baseName) return
     setError(null)
     try {
-      const r = await updateInvoiceStatus(baseName, status)
+      let amt: number | undefined
+      let dt: string | undefined
+      if (status === 'Paid' || status === 'Partially Paid') {
+        amt = paymentAmount
+        dt = paymentDate
+      }
+      const r = await updateInvoiceStatus(baseName, status, amt, dt)
       setInvoiceMeta(r.invoice_meta)
       setInvoiceHtml(r.invoice_html)
     } catch (e: any) {
@@ -171,7 +181,11 @@ export default function InvoiceDetail() {
                   value={invoiceMeta?.status ?? 'Draft'}
                   onChange={(e) => {
                     const newStatus = e.target.value as InvoiceStatus
+                    setPaymentAmount(invoiceMeta?.total_due || grandTotal)
+                    setPaymentDate(new Date().toISOString().split('T')[0])
                     if (isDraft && newStatus !== 'Draft') {
+                      setPendingStatus(newStatus)
+                    } else if (newStatus === 'Paid' || newStatus === 'Partially Paid') {
                       setPendingStatus(newStatus)
                     } else {
                       handleStatusChange(newStatus)
@@ -251,8 +265,38 @@ export default function InvoiceDetail() {
 
       <ConfirmModal
         isOpen={pendingStatus !== null}
-        title="Lock Invoice?"
-        message={`Once you mark this invoice as ${pendingStatus}, it can never be reverted back to Draft. It will be permanently locked from further edits.`}
+        title={pendingStatus === 'Paid' || pendingStatus === 'Partially Paid' ? `Mark as ${pendingStatus}?` : 'Lock Invoice?'}
+        message={
+          <div className="space-y-4">
+            <p>
+              {isDraft
+                ? `Once you mark this invoice as ${pendingStatus}, it can never be reverted back to Draft. It will be permanently locked from further manual HTML edits.`
+                : `You are about to mark this invoice as ${pendingStatus}.`}
+            </p>
+            {(pendingStatus === 'Paid' || pendingStatus === 'Partially Paid') && (
+              <div className="grid grid-cols-2 gap-4 mt-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Amount Paid (₹)</label>
+                  <input
+                    type="number"
+                    value={paymentAmount}
+                    onChange={(e) => setPaymentAmount(Number(e.target.value))}
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Payment Date</label>
+                  <input
+                    type="date"
+                    value={paymentDate}
+                    onChange={(e) => setPaymentDate(e.target.value)}
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        }
         confirmText={`Mark as ${pendingStatus}`}
         cancelText="Cancel"
         onConfirm={() => {
