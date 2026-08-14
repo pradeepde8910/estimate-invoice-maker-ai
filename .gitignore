@@ -43,3 +43,7 @@ Thumbs.db
 # Test files
 test_*
 *.test.*
+
+# Ignore specific formats
+*.pdf
+*.postman_collection.json
