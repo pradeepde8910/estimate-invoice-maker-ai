@@ -6,7 +6,17 @@ import DonutChart from './DonutChart'
 import type { JobResult } from '../api/types'
 
 export const inr = (n: number) => '₹' + Math.round(n || 0).toLocaleString('en-IN')
-export const compactInr = (n: number) => '₹' + Intl.NumberFormat('en-IN', { notation: 'compact', compactDisplay: 'short', maximumFractionDigits: 1 }).format(n || 0)
+
+export const compactInr = (n: number) => {
+  const value = n || 0;
+  const format = (v: number) => new Intl.NumberFormat('en-IN', { maximumFractionDigits: 1 }).format(v);
+  
+  if (value < 1000) return `₹${format(value)}`;
+  if (value < 100000) return `₹${format(value / 1000)} K`;
+  if (value < 10000000) return `₹${format(value / 100000)} L`;
+  
+  return `₹${format(value / 10000000)} Cr`;
+};
 
 export default function EstimationResult({
   result,
