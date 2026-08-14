@@ -16,15 +16,15 @@ const ESTIMATION_NAV: NavItem[] = [
   { to: '/estimation', label: 'Dashboard', icon: ChartIcon, end: true },
   { to: '/estimation/new', label: 'New Estimation', icon: PlusIcon },
   { to: '/estimation/list', label: 'Estimations', icon: ListIcon },
-  { to: '/rate-card', label: 'Rate Card', icon: TagIcon },
-  { to: '/organization', label: 'Organization Settings', icon: BuildingIcon },
+  { to: '/estimation/rate-card', label: 'Rate Card', icon: TagIcon },
+  { to: '/estimation/organization', label: 'Organization Settings', icon: BuildingIcon },
 ]
 
 const INVOICE_NAV: NavItem[] = [
   { to: '/invoice', label: 'Dashboard', icon: ChartIcon, end: true },
   { to: '/invoice/new', label: 'New Invoice', icon: PlusIcon },
   { to: '/invoice/list', label: 'Invoice History', icon: ListIcon },
-  { to: '/organization', label: 'Organization Settings', icon: BuildingIcon },
+  { to: '/invoice/organization', label: 'Organization Settings', icon: BuildingIcon },
 ]
 
 export default function WorkspaceSidebar({ workspace }: { workspace: 'estimation' | 'invoice' }) {

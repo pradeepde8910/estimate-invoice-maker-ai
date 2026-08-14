@@ -84,24 +84,48 @@ def create_token(username: str) -> str:
     signature = hmac.new(config.JWT_SECRET.encode(), payload_b64.encode(), hashlib.sha256).hexdigest()
     return f"{payload_b64}.{signature}"
 
-def verify_token(token: str) -> bool:
+def decode_token(token: str) -> Optional[dict]:
+    """Verifies the HMAC signature and expiry and returns the decoded
+    payload, or None if the token is malformed, tampered, or expired.
+    Does NOT check that the embedded username corresponds to a real,
+    active account - callers that need that must use is_valid_username()
+    against a DB session (see auth_middleware / get_current_username)."""
     try:
         parts = token.split(".")
         if len(parts) != 2:
-            return False
+            return None
         payload_b64, signature = parts
         expected_signature = hmac.new(config.JWT_SECRET.encode(), payload_b64.encode(), hashlib.sha256).hexdigest()
         if not hmac.compare_digest(signature, expected_signature):
-            return False
-        
+            return None
+
         padding = "=" * (4 - len(payload_b64) % 4)
         payload_json = base64.urlsafe_b64decode(payload_b64 + padding).decode()
         payload = json.loads(payload_json)
         if int(time.time()) > payload.get("exp", 0):
-            return False
-        return True
+            return None
+        return payload
     except Exception:
+        return None
+
+
+def verify_token(token: str) -> bool:
+    return decode_token(token) is not None
+
+
+def is_valid_username(username: str, db) -> bool:
+    """A signed, unexpired JWT is only half of authentication - the
+    username it names must also correspond to a real account, or to the
+    bootstrap admin identity the login endpoint itself trusts before any
+    User row exists. Without this check, anyone who knows JWT_SECRET could
+    mint a token for a username that was never created and still pass
+    every protected route (see login_endpoint's bootstrap comment for why
+    the ADMIN_USERNAME carve-out exists)."""
+    if not username:
         return False
+    if username == config.ADMIN_USERNAME:
+        return True
+    return db.query(User).filter(User.username == username).first() is not None
 
 class LoginRequest(BaseModel):
     username: str
@@ -205,10 +229,18 @@ async def auth_middleware(request: Request, call_next):
     # Public endpoints that don't require a Bearer token
     PUBLIC_PATHS = {"/api/auth/login", "/api/auth/validate", "/api/auth/branding"}
     if path.startswith("/api") and path not in PUBLIC_PATHS and request.method != "OPTIONS":
-        # Allow QA testing scripts to bypass JWT via static API key
+        # Allow QA testing scripts (Postman/JMeter/k6) to authenticate via a
+        # static API key instead of a Bearer token. This resolves to a real
+        # identity (config.QA_TEST_USERNAME) rather than skipping
+        # authorization entirely, so role-gated endpoints (require_role)
+        # still enforce the same rules for QA traffic as for a logged-in
+        # user. QA_TEST_API_KEY is empty by default - set it only in
+        # QA/staging environments; leave it unset in production so this
+        # header has no effect there.
         api_key = request.headers.get("X-API-Key")
         if api_key is not None:
             if config.QA_TEST_API_KEY and hmac.compare_digest(api_key, config.QA_TEST_API_KEY):
+                request.state.qa_authenticated_username = config.QA_TEST_USERNAME
                 return await call_next(request)
             return JSONResponse(status_code=401, content={"detail": "Invalid API Key or QA mode disabled."})
 
@@ -216,8 +248,16 @@ async def auth_middleware(request: Request, call_next):
         if not auth_header or not auth_header.startswith("Bearer "):
             return JSONResponse(status_code=401, content={"detail": "Unauthorized. Please log in."})
         token = auth_header.split(" ")[1]
-        if not verify_token(token):
+        payload = decode_token(token)
+        if not payload:
             return JSONResponse(status_code=401, content={"detail": "Session expired or invalid token."})
+
+        db = SessionLocal()
+        try:
+            if not is_valid_username(payload.get("user"), db):
+                return JSONResponse(status_code=401, content={"detail": "Account no longer exists or is inactive."})
+        finally:
+            db.close()
 
     response = await call_next(request)
     return response
@@ -1500,26 +1540,38 @@ async def health():
 
 
 def get_current_username(request: Request) -> str:
-    """Extracts the username from the bearer token, re-verifying its HMAC
-    signature here rather than trusting that auth_middleware already ran
-    (defense in depth - this used to decode the payload unverified and
-    silently fall back to "admin" on any parse error, a fail-open trap)."""
+    """Extracts the calling identity, re-verifying the bearer token's HMAC
+    signature and the underlying account's existence here rather than
+    trusting that auth_middleware already ran (defense in depth - this used
+    to decode the payload unverified and silently fall back to "admin" on
+    any parse error, a fail-open trap).
+
+    Requests authenticated via the QA X-API-Key (see auth_middleware) carry
+    no Authorization header at all; they resolve to config.QA_TEST_USERNAME
+    via request.state instead, so role-gated endpoints behave identically
+    for QA tooling and for a real Bearer-token login."""
+    qa_username = getattr(request.state, "qa_authenticated_username", None)
+    if qa_username:
+        return qa_username
+
     auth_header = request.headers.get("Authorization", "")
     if not auth_header.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Unauthorized. Please log in.")
     token = auth_header.split(" ", 1)[1]
-    if not verify_token(token):
+    payload = decode_token(token)
+    if not payload:
         raise HTTPException(status_code=401, detail="Session expired or invalid token.")
-    try:
-        payload_b64 = token.split(".")[0]
-        padding = "=" * (4 - len(payload_b64) % 4)
-        payload = json.loads(base64.urlsafe_b64decode(payload_b64 + padding).decode())
-        username = payload.get("user")
-        if not username:
-            raise ValueError("token payload missing user claim")
-        return username
-    except Exception:
+    username = payload.get("user")
+    if not username:
         raise HTTPException(status_code=401, detail="Invalid token payload.")
+
+    db = SessionLocal()
+    try:
+        if not is_valid_username(username, db):
+            raise HTTPException(status_code=401, detail="Account no longer exists or is inactive.")
+    finally:
+        db.close()
+    return username
 
 
 def get_current_role(request: Request, db) -> str:
@@ -1548,6 +1600,10 @@ def require_role(request: Request, db, allowed_roles: set[str]) -> str:
 async def patch_estimation(id: str, payload: EstimationPatch, request: Request):
     db = SessionLocal()
     try:
+        # Admin-only: this endpoint can rewrite grand_total/timeline_weeks,
+        # the same financial fields delete_estimation and the rest of the
+        # mutating endpoints in this file already gate on role.
+        require_role(request, db, {"Admin"})
         est = db.query(Estimation).filter(Estimation.id == id, Estimation.is_deleted == False).first()
         if not est:
             raise HTTPException(status_code=404, detail="Estimation not found")
@@ -1660,6 +1716,10 @@ async def delete_estimation(id: str, request: Request):
 async def patch_invoice(id: str, payload: InvoicePatch, request: Request):
     db = SessionLocal()
     try:
+        # Admin-only: this endpoint can set status="Paid", the same effect
+        # PUT /api/estimations/{base_name}/invoice/status restricts to
+        # Admin/Finance - gate it here too so the two paths agree.
+        require_role(request, db, {"Admin"})
         inv = db.query(Invoice).filter(Invoice.id == id).first()
         if not inv:
             raise HTTPException(status_code=404, detail="Invoice not found")

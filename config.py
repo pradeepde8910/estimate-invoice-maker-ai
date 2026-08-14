@@ -37,6 +37,14 @@ if not JWT_SECRET:
     )
 
 QA_TEST_API_KEY = os.getenv("QA_TEST_API_KEY", "")
+# Identity that requests authenticated via X-API-Key resolve to, so
+# role-gated endpoints (require_role) behave the same for QA tooling
+# (Postman/JMeter/k6) as they do for a real Bearer-token login, instead of
+# the API key silently skipping authorization checks entirely. Defaults to
+# the admin bootstrap username so QA can exercise Admin-only endpoints out
+# of the box; point it at a dedicated low-privilege account's username to
+# test non-Admin paths instead.
+QA_TEST_USERNAME = os.getenv("QA_TEST_USERNAME", ADMIN_USERNAME)
 
 # ─── Database Settings ────────────────────────────────────────────────────────
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///pixous.db").strip()

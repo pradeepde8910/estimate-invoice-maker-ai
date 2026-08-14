@@ -30,6 +30,8 @@ const router = createBrowserRouter(
           <Route index element={<EstimationDashboard />} />
           <Route path="new" element={<NewEstimation />} />
           <Route path="list" element={<EstimationList />} />
+          <Route path="rate-card" element={<RateCardPage />} />
+          <Route path="organization" element={<OrganizationSettings />} />
           <Route path="document/base/:baseName/:type" element={<DocumentView source="base" />} />
           <Route path="document/:jobId/:type" element={<DocumentView source="job" />} />
           <Route path=":baseName" element={<EstimationDetail />} />
@@ -39,11 +41,9 @@ const router = createBrowserRouter(
           <Route index element={<InvoiceDashboard />} />
           <Route path="new" element={<NewInvoice />} />
           <Route path="list" element={<InvoiceHistory />} />
+          <Route path="organization" element={<OrganizationSettings />} />
           <Route path=":baseName" element={<InvoiceDetail />} />
         </Route>
-
-        <Route path="/organization" element={<OrganizationSettings />} />
-        <Route path="/rate-card" element={<RateCardPage />} />
       </Route>
 
       <Route path="*" element={<ErrorBoundary />} />
