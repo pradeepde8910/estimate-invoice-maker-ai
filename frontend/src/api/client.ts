@@ -31,7 +31,18 @@ export class ApiError extends Error {
 async function json<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText)
-    throw new ApiError(res.status, text || `Request failed (${res.status})`)
+    let errorMessage = text
+    try {
+      const parsed = JSON.parse(text)
+      if (parsed.detail) {
+        errorMessage = typeof parsed.detail === 'string' ? parsed.detail : JSON.stringify(parsed.detail)
+      } else if (parsed.message) {
+        errorMessage = parsed.message
+      }
+    } catch (e) {
+      // not JSON, keep original text
+    }
+    throw new ApiError(res.status, errorMessage || `Request failed (${res.status})`)
   }
   return res.json()
 }
@@ -79,6 +90,19 @@ export async function listClients(): Promise<{ clients: ClientGroup[] }> {
   return json(res)
 }
 
+export async function listDbClients(): Promise<{ clients: any[] }> {
+  const res = await fetch(`${BASE}/db-clients`)
+  return json(res)
+}
+
+// V2's own client roster (backs Invoice.client_id / Project.client_id) — a
+// distinct SQLite database from v1's /db-clients above, so the two endpoints'
+// client ids are NOT interchangeable.
+export async function listMasterClients(): Promise<any[]> {
+  const res = await fetch(`${BASE}/master/clients`)
+  return json(res)
+}
+
 export async function createManualEstimation(payload: {
   client_name: string
   project_name: string
@@ -94,9 +118,29 @@ export async function createManualEstimation(payload: {
 
 export async function patchEstimation(
   baseName: string,
-  payload: { project_name?: string; timeline_weeks?: number; grand_total?: number; version: number }
+  payload: { project_name?: string; timeline_weeks?: number; grand_total?: number; status?: string; version: number }
 ): Promise<{ id: string; project_name: string; timeline_weeks: number; grand_total: number; version: number; updated_at: string }> {
   const res = await fetch(`${BASE}/estimations/${encodeURIComponent(baseName)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return json(res)
+}
+
+export async function patchEstimationClient(
+  baseName: string,
+  payload: {
+    company_name?: string | null
+    contact_person?: string | null
+    email?: string | null
+    phone?: string | null
+    billing_address?: string | null
+    gstin?: string | null
+    status?: string | null
+  }
+): Promise<{ status: string; client_id: string }> {
+  const res = await fetch(`${BASE}/estimations/${encodeURIComponent(baseName)}/client`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -155,6 +199,91 @@ export async function openDocumentPdf(baseName: string, docType: string) {
   a.download = `${baseName}_${docType}.pdf`
   a.click()
   setTimeout(() => URL.revokeObjectURL(url), 60_000)
+}
+
+export async function downloadInvoicePdf(invoiceId: string) {
+  const res = await fetch(`${BASE}/invoices/${invoiceId}/pdf`)
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText)
+    throw new ApiError(res.status, text || `Request failed (${res.status})`)
+  }
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `invoice_${invoiceId}.pdf`
+  a.click()
+  setTimeout(() => URL.revokeObjectURL(url), 60_000)
+}
+
+// Downloads a combined statement of every invoice in [fromDate, toDate] (YYYY-MM-DD),
+// optionally scoped to one project. `format` matches the backend's ExportFormat enum.
+export async function downloadInvoiceStatement(
+  fromDate: string,
+  toDate: string,
+  opts: { projectId?: string; format?: 'csv' | 'excel' | 'pdf' } = {}
+) {
+  const format = opts.format || 'pdf'
+  const res = await fetch(`${BASE}/reports/INVOICE/export`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      filters: {
+        project_id: opts.projectId || null,
+        from_date: fromDate,
+        to_date: toDate,
+      },
+      format,
+    }),
+  })
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText)
+    throw new ApiError(res.status, text || `Request failed (${res.status})`)
+  }
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  const extension = format === 'excel' ? 'xlsx' : format
+  a.download = `invoice_statement_${fromDate}_to_${toDate}.${extension}`
+  a.click()
+  setTimeout(() => URL.revokeObjectURL(url), 60_000)
+}
+
+// Config-driven project export: exact set of project_ids (whatever's
+// currently filtered on screen), a caller-chosen column subset, and format.
+export async function downloadProjectStatement(opts: {
+  projectIds: string[]
+  columns?: string[]
+  format?: 'csv' | 'excel' | 'pdf'
+}) {
+  const format = opts.format || 'pdf'
+  const res = await fetch(`${BASE}/reports/PROJECT/export`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      filters: { project_ids: opts.projectIds },
+      selected_columns: opts.columns && opts.columns.length > 0 ? opts.columns : null,
+      format,
+    }),
+  })
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText)
+    throw new ApiError(res.status, text || `Request failed (${res.status})`)
+  }
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  const extension = format === 'excel' ? 'xlsx' : format
+  a.download = `projects_statement.${extension}`
+  a.click()
+  setTimeout(() => URL.revokeObjectURL(url), 60_000)
+}
+
+export async function getInvoiceDetails(invoiceId: string): Promise<any> {
+  const res = await fetch(`${BASE}/invoices/${invoiceId}`)
+  return json(res)
 }
 
 export async function getRateCard(): Promise<{ rates: RateCard }> {
@@ -286,3 +415,220 @@ export async function validateSession(): Promise<boolean> {
 }
 
 
+
+
+// --- V2 Financial API Endpoints ---
+export async function getProjectSummary(projectId: string): Promise<any> {
+  const res = await fetch(`${BASE}/projects/${projectId}/summary`);
+  return json(res);
+}
+
+export async function listInvoices(projectId: string): Promise<any> {
+  const res = await fetch(`${BASE}/projects/${projectId}/invoices`);
+  return json(res);
+}
+
+export interface BillingClassificationMatch {
+  id: string
+  category: string
+  description: string
+  item_type: string
+  hsn_sac_code: string
+  hsn_sac_type: string
+  gst_rate: number
+  score: number
+}
+
+export async function matchBillingClassifications(description: string, limit = 5): Promise<BillingClassificationMatch[]> {
+  const res = await fetch(`${BASE}/master/billing-classifications/match?description=${encodeURIComponent(description)}&limit=${limit}`)
+  return json(res)
+}
+
+export async function createInvoice(projectId: string, data: any): Promise<any> {
+  const res = await fetch(`${BASE}/invoices/projects/${projectId}/invoices`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  return json(res);
+}
+
+export async function listStandaloneInvoices(): Promise<any[]> {
+  const res = await fetch(`${BASE}/invoices/standalone`);
+  return json(res);
+}
+
+export async function createStandaloneInvoice(data: any): Promise<any> {
+  const res = await fetch(`${BASE}/invoices/standalone`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  return json(res);
+}
+
+export async function getInvoiceV2(invoiceId: string): Promise<any> {
+  const res = await fetch(`${BASE}/invoices/${invoiceId}`);
+  return json(res);
+}
+
+export async function updateInvoiceStatusV2(invoiceId: string, status: string): Promise<any> {
+  const res = await fetch(`${BASE}/invoices/${invoiceId}/status`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status }),
+  });
+  return json(res);
+}
+
+export async function recordPayment(projectId: string, invoiceId: string, data: any): Promise<any> {
+  const res = await fetch(`${BASE}/payments/${projectId}/invoices/${invoiceId}/payments`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  return json(res);
+}
+
+// Records a payment that already happened outside the app (cash, bank transfer, UPI, cheque)
+// in one atomic step — goes straight to SUCCESS instead of the initiate/processing/success
+// gateway lifecycle `recordPayment` above drives, which is unnecessary for manual entry.
+export async function recordManualPayment(
+  projectId: string,
+  invoiceId: string,
+  data: { amount: number; payment_method: string; payment_date?: string; transaction_reference?: string; remarks?: string }
+): Promise<any> {
+  const res = await fetch(`${BASE}/payments/${projectId}/invoices/${invoiceId}/payments/manual`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  return json(res);
+}
+
+export async function listInvoicePayments(projectId: string, invoiceId: string): Promise<any[]> {
+  const res = await fetch(`${BASE}/payments/${projectId}/invoices/${invoiceId}/payments`);
+  return json(res);
+}
+
+export async function listProjects(): Promise<any> {
+  const res = await fetch(`${BASE}/projects`);
+  return json(res);
+}
+
+export async function createProject(data: any) {
+  const res = await fetch(`${BASE}/projects`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  return json(res);
+}
+
+export async function convertEstimationToProject(estimationId: string): Promise<any> {
+  const res = await fetch(`${BASE}/projects/estimations/${estimationId}/convert`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  });
+  return json(res);
+}
+
+// --- Billing Classifications ---
+export async function listBillingClassifications(): Promise<any[]> {
+  const res = await fetch(`${BASE}/master/billing-classifications`);
+  return json<any[]>(res);
+}
+
+export async function matchBillingClassification(description: string): Promise<any[]> {
+  const res = await fetch(`${BASE}/master/billing-classifications/match?description=${encodeURIComponent(description)}`);
+  return json<any[]>(res);
+}
+
+export async function createBillingClassification(data: any): Promise<any> {
+  const res = await fetch(`${BASE}/master/billing-classifications`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  return json(res);
+}
+
+export async function updateBillingClassification(id: string, data: any): Promise<any> {
+  const res = await fetch(`${BASE}/master/billing-classifications/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  return json(res);
+}
+
+export async function deleteBillingClassification(id: string): Promise<any> {
+  const res = await fetch(`${BASE}/master/billing-classifications/${id}`, {
+    method: 'DELETE',
+  });
+  return json(res);
+}
+
+export async function getBillingPreview(projectId: string): Promise<any> {
+  const res = await fetch(`${BASE}/projects/${projectId}/billing-preview`);
+  return json(res);
+}
+
+// --- Resource & Capability Catalog ---
+const RC_BASE = `${BASE}/master/resource-catalog`
+
+export async function listCapabilities(): Promise<any[]> {
+  return json(await fetch(`${RC_BASE}/capabilities`))
+}
+export async function createCapability(data: any): Promise<any> {
+  return json(await fetch(`${RC_BASE}/capabilities`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }))
+}
+export async function updateCapability(id: string, data: any): Promise<any> {
+  return json(await fetch(`${RC_BASE}/capabilities/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }))
+}
+export async function deleteCapability(id: string): Promise<any> {
+  return json(await fetch(`${RC_BASE}/capabilities/${id}`, { method: 'DELETE' }))
+}
+
+export async function listProviders(): Promise<any[]> {
+  return json(await fetch(`${RC_BASE}/providers`))
+}
+export async function createProvider(data: any): Promise<any> {
+  return json(await fetch(`${RC_BASE}/providers`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }))
+}
+export async function updateProvider(id: string, data: any): Promise<any> {
+  return json(await fetch(`${RC_BASE}/providers/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }))
+}
+export async function deleteProvider(id: string): Promise<any> {
+  return json(await fetch(`${RC_BASE}/providers/${id}`, { method: 'DELETE' }))
+}
+
+export async function listTechnologyModels(): Promise<any[]> {
+  return json(await fetch(`${RC_BASE}/models`))
+}
+export async function createTechnologyModel(data: any): Promise<any> {
+  return json(await fetch(`${RC_BASE}/models`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }))
+}
+export async function updateTechnologyModel(id: string, data: any): Promise<any> {
+  return json(await fetch(`${RC_BASE}/models/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }))
+}
+export async function deleteTechnologyModel(id: string): Promise<any> {
+  return json(await fetch(`${RC_BASE}/models/${id}`, { method: 'DELETE' }))
+}
+
+export async function addModelFeature(modelId: string, data: { feature_key: string; feature_value: string }): Promise<any> {
+  return json(await fetch(`${RC_BASE}/models/${modelId}/features`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }))
+}
+export async function deleteModelFeature(id: string): Promise<any> {
+  return json(await fetch(`${RC_BASE}/features/${id}`, { method: 'DELETE' }))
+}
+
+export async function addPricingRule(modelId: string, data: any): Promise<any> {
+  return json(await fetch(`${RC_BASE}/models/${modelId}/pricing`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }))
+}
+export async function updatePricingRule(id: string, data: any): Promise<any> {
+  return json(await fetch(`${RC_BASE}/pricing/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }))
+}
+export async function deletePricingRule(id: string): Promise<any> {
+  return json(await fetch(`${RC_BASE}/pricing/${id}`, { method: 'DELETE' }))
+}

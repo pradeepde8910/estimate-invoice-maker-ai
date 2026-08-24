@@ -8,6 +8,24 @@ html, body, #root {
 
 body {
   @apply bg-[#f6faf7] text-slate-800 font-sans;
+  /* Crisp rendering for the custom variable font (Google Sans Flex) — without
+     this, WebKit/Blink on macOS render it slightly heavier/fuzzier than the
+     system-font fallback it replaces, undercutting the whole point of
+     choosing a custom typeface. */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  /* Tabular (monospaced-width) digits everywhere by default. This is a
+     finance-heavy app — invoice line items, payment history, project
+     financial summaries — and proportional digits make stacked amounts
+     visibly ragged (a "1" is narrower than a "8"), which reads as sloppy in
+     a document meant to be trusted. Site-wide is deliberate, not scoped to
+     tables: Google Sans's tabular figures are visually indistinguishable
+     from its proportional ones in ordinary prose, so there's no readability
+     cost anywhere numbers *aren't* the point, and no page can regress by
+     forgetting a `tabular-nums` class.
+  */
+  font-variant-numeric: tabular-nums;
 }
 
 ::-webkit-scrollbar {

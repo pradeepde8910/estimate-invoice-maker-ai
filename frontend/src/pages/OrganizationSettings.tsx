@@ -9,10 +9,8 @@ import { refreshLogo } from '../hooks/useLogo'
 
 type AssetSlotKey = 'logo' | 'signature' | 'seal'
 
-const EMAIL_RE = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/
-const PHONE_RE = /^[6-9]\d{9}$/
-const GSTIN_RE = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/
-const WEBSITE_RE = /^(https?:\/\/)?([\w.-]+)\.([a-z]{2,6})([\/\w .-]*)*\/?$/i
+import { EMAIL_RE, PHONE_RE, GSTIN_RE, WEBSITE_RE, UPI_ID_RE } from '../utils/validation'
+import { formatGSTIN, formatPhone, uiFormatPhone } from '../utils/validation'
 
 const FIELD_ROWS: {
   key: keyof OrganizationProfile
@@ -42,41 +40,10 @@ const BANK_FIELD_ROWS: { key: keyof OrganizationProfile; label: string; placehol
   { key: 'bank_account_number', label: 'Account Number', placeholder: 'e.g. 000123456789', maxLength: 30 },
   { key: 'bank_ifsc', label: 'IFSC Code', placeholder: 'e.g. HDFC0001234', maxLength: 11 },
   { key: 'bank_branch', label: 'Branch', placeholder: 'e.g. Gandhipuram, Coimbatore', maxLength: 100 },
+  { key: 'upi_id', label: 'UPI ID', placeholder: 'e.g. company@okhdfcbank', maxLength: 100 },
 ]
 
-function formatGSTIN(val: string): string {
-  const v = val.toUpperCase().replace(/[^A-Z0-9]/g, '')
-  let filtered = ''
-  for (let i = 0; i < v.length && filtered.length < 15; i++) {
-    const c = v[i]
-    const pos = filtered.length
-    if (pos < 2 && /[0-9]/.test(c)) filtered += c
-    else if (pos >= 2 && pos < 7 && /[A-Z]/.test(c)) filtered += c
-    else if (pos >= 7 && pos < 11 && /[0-9]/.test(c)) filtered += c
-    else if (pos === 11 && /[A-Z]/.test(c)) filtered += c
-    else if (pos === 12 && /[1-9A-Z]/.test(c)) filtered += c
-    else if (pos === 13 && c === 'Z') filtered += c
-    else if (pos === 14 && /[0-9A-Z]/.test(c)) filtered += c
-  }
-  return filtered
-}
 
-function formatPhone(val: string): string {
-  let cleaned = val
-  if (cleaned.startsWith('+91')) {
-     cleaned = cleaned.slice(3)
-  } else if (cleaned.startsWith('91') && cleaned.replace(/\D/g, '').length > 10) {
-     cleaned = cleaned.slice(2)
-  }
-  return cleaned.replace(/\D/g, '').slice(0, 10)
-}
-
-function uiFormatPhone(val: string): string {
-  const digits = formatPhone(val)
-  if (digits.length === 0) return ''
-  if (digits.length > 5) return '+91 ' + digits.slice(0, 5) + ' ' + digits.slice(5)
-  return '+91 ' + digits
-}
 
 function truncateWords(val: string, max: number): string {
   const tokens = val.split(/(\s+)/)
@@ -101,6 +68,7 @@ function validateField(key: keyof OrganizationProfile, value: string, required?:
   if (key === 'bank_name' && !/^[A-Za-z\s.]+$/.test(value)) return 'Bank name should contain only letters and spaces'
   if (key === 'bank_account_number' && !/^\d{9,18}$/.test(value)) return 'Enter a valid bank account number (9-18 digits)'
   if (key === 'bank_ifsc' && !/^[A-Z]{4}0[0-9]{6}$/.test(value.toUpperCase())) return 'Enter a valid IFSC code (e.g., SBIN0125620)'
+  if (key === 'upi_id' && !UPI_ID_RE.test(value)) return 'Enter a valid UPI ID (e.g., name@bank)'
   
   if (key === 'invoice_terms') {
     const wordCount = value.trim().split(/\s+/).filter((w) => w.length > 0).length
@@ -260,7 +228,7 @@ export default function OrganizationSettings() {
   const uploadInputRef = useRef<HTMLInputElement>(null)
 
   return (
-    <div className="flex-1">
+    <div className="flex-1 bg-slate-50 min-h-screen">
       <Topbar showBack title="Organization Settings" subtitle="Branding shown on every generated document — quotation, BRD, SRS, and invoice." />
       <div className="p-8 max-w-3xl space-y-6">
         {error && <div className="text-sm text-coral-600 bg-coral-50 rounded-2xl px-4 py-3">{error}</div>}

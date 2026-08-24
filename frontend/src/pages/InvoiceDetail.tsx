@@ -121,7 +121,7 @@ export default function InvoiceDetail() {
   const isDraft = (invoiceMeta?.status ?? 'Draft') === 'Draft'
 
   return (
-    <div className="flex-1">
+    <div className="flex-1 bg-slate-50 min-h-screen">
       <Topbar showBack title="Invoice" subtitle={`${clientName} · ${projectName}`} />
       <div className="p-8 max-w-4xl space-y-6">
         {error && <div className="text-sm text-coral-600 bg-coral-50 rounded-2xl px-4 py-3">{error}</div>}
@@ -276,7 +276,7 @@ export default function InvoiceDetail() {
             {(pendingStatus === 'Paid' || pendingStatus === 'Partially Paid') && (
               <div className="grid grid-cols-2 gap-4 mt-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Amount Paid (₹)</label>
+                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1">Amount Paid (₹)</label>
                   <input
                     type="number"
                     value={paymentAmount}
@@ -285,7 +285,7 @@ export default function InvoiceDetail() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Payment Date</label>
+                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1">Payment Date</label>
                   <input
                     type="date"
                     value={paymentDate}

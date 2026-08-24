@@ -8,6 +8,7 @@ import { inr, compactInr } from '../components/EstimationResult'
 import ConfirmModal from '../components/ConfirmModal'
 import { getAnalytics, deleteEstimation } from '../api/client'
 import type { Analytics, DocumentSummary } from '../api/types'
+import { useJob } from '../JobContext'
 
 export default function EstimationDashboard() {
   const [data, setData] = useState<Analytics | null>(null)
@@ -15,6 +16,16 @@ export default function EstimationDashboard() {
   const [deleteTarget, setDeleteTarget] = useState<DocumentSummary | null>(null)
   const [deleting, setDeleting] = useState(false)
   const navigate = useNavigate()
+  const { job, setJobId } = useJob()
+  const jobIsActive = job?.status === 'queued' || job?.status === 'running'
+
+  function goToNewEstimation() {
+    // Same fix as the sidebar link: only jump straight into the form if
+    // there's no in-flight job to keep tracking, otherwise this would land
+    // on the last completed job's results instead of a blank form.
+    if (!jobIsActive) setJobId(null)
+    navigate('/estimation/new')
+  }
 
   function refresh() {
     getAnalytics()
@@ -58,12 +69,12 @@ export default function EstimationDashboard() {
   }
 
   return (
-    <div className="flex-1">
+    <div className="flex-1 bg-slate-50 min-h-screen">
       <Topbar showBack title="Estimation Dashboard" subtitle="Overview of every estimation you've created." />
       <div className="p-8 space-y-6">
         <div className="flex justify-end">
           <button
-            onClick={() => navigate('/estimation/new')}
+            onClick={goToNewEstimation}
             className="text-sm font-medium bg-brand-600 hover:bg-brand-700 text-white px-5 py-2.5 rounded-full"
           >
             + New Estimation

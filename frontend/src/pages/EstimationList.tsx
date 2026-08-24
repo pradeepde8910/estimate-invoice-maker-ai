@@ -4,23 +4,25 @@ import Topbar from '../components/Topbar'
 import Card from '../components/Card'
 import ConfirmModal from '../components/ConfirmModal'
 import { inr } from '../components/EstimationResult'
-import { listClients, deleteEstimation, ApiError } from '../api/client'
-import type { ClientGroup, DocumentSummary } from '../api/types'
+import { listDocuments, deleteEstimation } from '../api/client'
+import type { DocumentSummary } from '../api/types'
 
-function filterClients(clients: ClientGroup[], query: string): ClientGroup[] {
+function filterDocuments(docs: DocumentSummary[], query: string): DocumentSummary[] {
   const q = query.trim().toLowerCase()
-  if (!q) return clients
-  return clients
-    .map((c) => {
-      if (c.client_name.toLowerCase().includes(q)) return c
-      const estimations = c.estimations.filter((e) => e.project_name.toLowerCase().includes(q))
-      return estimations.length ? { ...c, estimations, estimation_count: estimations.length } : null
-    })
-    .filter((c): c is ClientGroup => c !== null)
+  if (!q) return docs
+  return docs.filter(
+    (d) => d.project_name.toLowerCase().includes(q) || d.client_name.toLowerCase().includes(q)
+  )
+}
+
+function formatModified(iso: string): string {
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return ''
+  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
 export default function EstimationList() {
-  const [clients, setClients] = useState<ClientGroup[] | null>(null)
+  const [documents, setDocuments] = useState<DocumentSummary[] | null>(null)
   const [search, setSearch] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<DocumentSummary | null>(null)
@@ -28,8 +30,8 @@ export default function EstimationList() {
   const navigate = useNavigate()
 
   function refresh() {
-    return listClients()
-      .then((r) => setClients(r.clients))
+    return listDocuments()
+      .then((r) => setDocuments(r.documents))
       .catch((e) => setError(e.message))
   }
 
@@ -52,12 +54,14 @@ export default function EstimationList() {
     }
   }
 
+  const visible = documents ? filterDocuments(documents, search) : []
+
   return (
-    <div className="flex-1">
-      <Topbar showBack title="Estimations" subtitle="Every estimation, grouped by client." />
+    <div className="flex-1 bg-slate-50 min-h-screen">
+      <Topbar showBack title="Estimations" subtitle="Every estimation, newest first." />
       <div className="p-8 space-y-6">
         <div className="flex items-center justify-end">
-          {clients && clients.length > 0 && (
+          {documents && documents.length > 0 && (
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -68,68 +72,63 @@ export default function EstimationList() {
         </div>
 
         {error && <div className="text-sm text-coral-600 bg-coral-50 rounded-2xl px-4 py-3">{error}</div>}
-        {!clients ? (
+        {!documents ? (
           <p className="text-sm text-slate-400">Loading…</p>
-        ) : clients.length === 0 ? (
+        ) : documents.length === 0 ? (
           <Card className="text-center py-10 text-sm text-slate-400">No estimations yet — start one above.</Card>
+        ) : visible.length === 0 ? (
+          <Card className="text-center py-10 text-sm text-slate-400">No estimations match "{search}".</Card>
         ) : (
-          <div className="space-y-4">
-            {filterClients(clients, search).map((c) => (
-              <Card key={c.client_name}>
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-semibold text-slate-800">{c.client_name}</h3>
-                  <span className="text-xs text-slate-400">
-                    {c.estimation_count} estimation{c.estimation_count !== 1 ? 's' : ''}
-                  </span>
-                </div>
-                <ul className="divide-y divide-slate-100">
-                  {c.estimations.map((e) => (
-                    <li key={e.base_name}>
-                      <div className="w-full flex items-center justify-between py-3 px-3 -mx-3 rounded-xl hover:bg-slate-50 transition-colors">
-                        <span className="text-sm font-medium text-slate-700 text-left truncate max-w-md">
-                          {e.project_name}
-                        </span>
-                        <div className="flex items-center gap-3 shrink-0">
-                          {e.grand_total != null && (
-                            <span className="text-sm font-semibold text-slate-800 tabular-nums">{inr(e.grand_total)}</span>
-                          )}
-                          {e.has_invoice && (
-                            <span className="text-[11px] font-medium bg-brand-50 text-brand-600 px-2 py-1 rounded-full">Invoiced</span>
-                          )}
-                          <div className="flex items-center gap-1 ml-2">
-                            <button
-                              onClick={() => navigate(`/estimation/${e.base_name}`)}
-                              className="text-xs font-medium text-brand-600 bg-brand-50 hover:bg-brand-100 hover:text-brand-700 px-4 py-2 rounded-full transition-colors"
-                            >
-                              View
-                            </button>
-                            <button
-                              onClick={(ev) => {
-                                ev.stopPropagation()
-                                setDeleteTarget(e)
-                              }}
-                              title="Delete Estimation"
-                              className="w-8 h-8 rounded-full text-slate-300 hover:text-coral-600 hover:bg-coral-50 flex items-center justify-center transition-colors ml-1"
-                            >
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M3 6h18"></path>
-                                <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
-                                <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
-                              </svg>
-                            </button>
-                          </div>
-                        </div>
+          <Card className="!p-0 overflow-hidden">
+            <ul className="divide-y divide-slate-100">
+              {visible.map((d) => (
+                <li key={d.base_name}>
+                  <div className="w-full flex items-center justify-between py-4 px-5 hover:bg-slate-50 transition-colors">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-medium text-slate-800 truncate">{d.project_name}</div>
+                      <div className="text-xs text-slate-400 mt-0.5 flex items-center gap-2">
+                        <span className="truncate">{d.client_name}</span>
+                        <span>·</span>
+                        <span className="shrink-0">{formatModified(d.modified)}</span>
                       </div>
-                    </li>
-                  ))}
-                </ul>
-              </Card>
-            ))}
-          </div>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0 ml-4">
+                      {d.grand_total != null && (
+                        <span className="text-sm font-semibold text-slate-800 tabular-nums">{inr(d.grand_total)}</span>
+                      )}
+                      {d.has_invoice && (
+                        <span className="text-[11px] font-medium bg-brand-50 text-brand-600 px-2 py-1 rounded-full">Invoiced</span>
+                      )}
+                      <div className="flex items-center gap-1 ml-2">
+                        <button
+                          onClick={() => navigate(`/estimation/${d.base_name}`)}
+                          className="text-xs font-medium text-brand-600 bg-brand-50 hover:bg-brand-100 hover:text-brand-700 px-4 py-2 rounded-full transition-colors"
+                        >
+                          View
+                        </button>
+                        <button
+                          onClick={(ev) => {
+                            ev.stopPropagation()
+                            setDeleteTarget(d)
+                          }}
+                          title="Delete Estimation"
+                          className="w-8 h-8 rounded-full text-slate-300 hover:text-coral-600 hover:bg-coral-50 flex items-center justify-center transition-colors ml-1"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M3 6h18"></path>
+                            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </Card>
         )}
       </div>
-
-
 
       <ConfirmModal
         isOpen={deleteTarget !== null}
@@ -142,5 +141,3 @@ export default function EstimationList() {
     </div>
   )
 }
-
-

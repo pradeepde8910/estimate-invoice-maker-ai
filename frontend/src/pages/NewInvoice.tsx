@@ -27,7 +27,7 @@ export default function NewInvoice() {
   const uninvoiced = (clients ?? []).flatMap((c) => c.estimations.filter((e) => !e.has_invoice))
 
   return (
-    <div className="flex-1">
+    <div className="flex-1 bg-slate-50 min-h-screen">
       <Topbar showBack title="New Invoice" subtitle="Create an invoice manually, or generate one from an existing estimation." />
       <div className="p-8 space-y-6">
         {uninvoiced.length > 0 && (

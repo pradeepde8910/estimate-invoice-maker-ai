@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom'
 import { logout } from '../api/client'
 import ConfirmModal from './ConfirmModal'
 import { useLogo } from '../hooks/useLogo'
+import { useJob } from '../JobContext'
 
 
 interface NavItem {
@@ -17,13 +18,14 @@ const ESTIMATION_NAV: NavItem[] = [
   { to: '/estimation/new', label: 'New Estimation', icon: PlusIcon },
   { to: '/estimation/list', label: 'Estimations', icon: ListIcon },
   { to: '/estimation/rate-card', label: 'Rate Card', icon: TagIcon },
+  { to: '/estimation/resource-catalog', label: 'Resource & Capability Catalog', icon: LayersIcon },
   { to: '/estimation/organization', label: 'Organization Settings', icon: BuildingIcon },
 ]
 
 const INVOICE_NAV: NavItem[] = [
-  { to: '/invoice', label: 'Dashboard', icon: ChartIcon, end: true },
-  { to: '/invoice/new', label: 'New Invoice', icon: PlusIcon },
-  { to: '/invoice/list', label: 'Invoice History', icon: ListIcon },
+  { to: '/invoice', label: 'Projects & Invoices', icon: ChartIcon, end: true },
+  { to: '/invoice/classifications', label: 'Billing Classifications', icon: TagIcon },
+  { to: '/invoice/resource-catalog', label: 'Resource & Capability Catalog', icon: LayersIcon },
   { to: '/invoice/organization', label: 'Organization Settings', icon: BuildingIcon },
 ]
 
@@ -32,6 +34,8 @@ export default function WorkspaceSidebar({ workspace }: { workspace: 'estimation
   const label = workspace === 'estimation' ? 'Estimation Workspace' : 'Invoice Workspace'
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
   const logoUrl = useLogo()
+  const { job, setJobId } = useJob()
+  const jobIsActive = job?.status === 'queued' || job?.status === 'running'
 
   return (
     <aside className="w-64 shrink-0 bg-white flex flex-col h-screen sticky top-0">
@@ -40,7 +44,7 @@ export default function WorkspaceSidebar({ workspace }: { workspace: 'estimation
           ? <img src={logoUrl} alt="Logo" className="h-10 w-auto object-left object-contain" />
           : <span className="text-sm font-bold text-slate-700 leading-tight">Pixous Technologies</span>
         }
-        <div className="text-[10px] text-black leading-none uppercase font-semibold tracking-wider mt-0.5">{label}</div>
+        <div className="text-[10px] text-brand-600 leading-none uppercase font-semibold tracking-wider mt-0.5">{label}</div>
       </div>
 
       <nav className="flex-1 px-4 py-2 space-y-1.5">
@@ -49,11 +53,22 @@ export default function WorkspaceSidebar({ workspace }: { workspace: 'estimation
             key={to}
             to={to}
             end={end}
+            onClick={() => {
+              // "New Estimation" doubles as the in-progress/result view for
+              // whatever job is in JobContext. If that job already finished
+              // (or nothing is running), clicking the nav link should always
+              // land on a blank form — not the last completed job's results.
+              // If a job is still queued/running, leave it alone so the user
+              // can keep tracking it.
+              if (to === '/estimation/new' && !jobIsActive) {
+                setJobId(null)
+              }
+            }}
             className={({ isActive }) =>
               `flex items-center gap-3 px-4 py-2.5 rounded-2xl text-sm font-medium transition-colors ${
                 isActive
                   ? 'bg-brand-100 text-brand-700'
-                  : 'text-black hover:bg-slate-50 hover:text-black'
+                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
               }`
             }
           >
@@ -66,7 +81,7 @@ export default function WorkspaceSidebar({ workspace }: { workspace: 'estimation
       <div className="px-4 pb-2">
         <NavLink
           to="/"
-          className="flex items-center gap-3 px-4 py-2.5 rounded-2xl text-sm font-medium text-black hover:bg-slate-50 hover:text-black"
+          className="flex items-center gap-3 px-4 py-2.5 rounded-2xl text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors"
         >
           <HomeIcon className="w-5 h-5 shrink-0" />
           Back to Home
@@ -145,6 +160,14 @@ function BuildingIcon(props: React.SVGProps<SVGSVGElement>) {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} {...props}>
       <rect x="4" y="3" width="16" height="18" rx="1.5" />
       <path d="M9 7h1M14 7h1M9 11h1M14 11h1M9 15h1M14 15h1M10 21v-4h4v4" strokeLinecap="round" />
+    </svg>
+  )
+}
+function LayersIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} {...props}>
+      <path d="m12 3 9 5-9 5-9-5 9-5Z" strokeLinejoin="round" />
+      <path d="m3 13 9 5 9-5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
 }

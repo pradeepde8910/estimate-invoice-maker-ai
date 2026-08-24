@@ -32,7 +32,7 @@ export default function CircularGauge({
         />
       </svg>
       <div className="absolute flex flex-col items-center">
-        <span className="text-2xl font-bold text-slate-800">{Math.round(pct)}%</span>
+        <span className="text-2xl font-bold tracking-tight text-slate-800">{Math.round(pct)}%</span>
         {label && <span className="text-xs text-slate-400 mt-0.5">{label}</span>}
       </div>
     </div>

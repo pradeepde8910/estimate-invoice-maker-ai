@@ -23,7 +23,7 @@ export default function ErrorBoundary() {
       <div className="w-20 h-20 rounded-full bg-coral-100 text-coral-500 flex items-center justify-center text-3xl mb-6">
         ⚠️
       </div>
-      <h1 className="text-2xl font-bold text-slate-800 mb-3">{title}</h1>
+      <h1 className="text-2xl font-bold tracking-tight text-slate-800 mb-3">{title}</h1>
       <p className="text-slate-500 mb-8 max-w-md">{message}</p>
       <Link 
         to="/" 

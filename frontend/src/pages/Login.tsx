@@ -55,14 +55,14 @@ export default function Login() {
         <div className="flex flex-col items-center justify-center mb-8">
           {logoUrl
             ? <img src={logoUrl} alt="Logo" className="h-20 w-auto object-contain mb-4" />
-            : <span className="text-xl font-bold text-slate-700 mb-4">Pixous Technologies</span>
+            : <span className="text-xl font-bold tracking-tight text-slate-700 mb-4">Pixous Technologies</span>
           }
           <p className="text-sm text-slate-700 mt-1 uppercase tracking-wider font-bold text-center">Estimation &amp; Invoicing Portal</p>
         </div>
 
         {/* Card */}
         <div className="bg-white border border-slate-200/60 rounded-3xl p-8 shadow-xl shadow-slate-200/40 relative">
-          <h2 className="text-xl font-bold text-slate-800 mb-6 text-center">Login</h2>
+          <h2 className="text-xl font-bold tracking-tight text-slate-800 mb-6 text-center">Login</h2>
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-2">

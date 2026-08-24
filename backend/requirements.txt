@@ -1,0 +1,45 @@
+# Core LLM SDKs
+mistralai>=1.0.0
+groq>=0.9.0
+google-genai>=1.0.0
+
+# Agentic Framework
+langgraph>=0.4.0
+langchain-core>=0.3.0
+
+# Data Models
+pydantic>=2.0.0
+json-repair>=0.30.0
+
+# Document Handling
+python-docx>=1.0.0
+PyPDF2>=3.0.0
+requests>=2.31.0
+
+# Environment & CLI
+python-dotenv>=1.0.0
+rich>=13.0.0
+
+# API server
+fastapi>=0.110.0
+uvicorn[standard]>=0.29.0
+gunicorn>=22.0.0
+python-multipart>=0.0.9
+
+# Database ORM
+sqlalchemy>=2.0.0
+alembic>=1.13.0
+
+# Password hashing
+bcrypt>=4.1.0
+
+# Production database driver (PostgreSQL)
+psycopg2-binary>=2.9.9
+
+# Document export
+markdown>=3.6
+weasyprint>=61.0
+openpyxl>=3.1.0
+Pillow>=10.0.0
+playwright>=1.42.0
+qrcode>=7.4.0

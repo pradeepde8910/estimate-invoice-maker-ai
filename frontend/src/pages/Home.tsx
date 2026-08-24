@@ -18,7 +18,7 @@ export default function Home() {
   }
 
   return (
-    <div className="flex-1 min-h-screen">
+    <div className="flex-1 min-h-screen bg-slate-50">
       <header className="flex items-center justify-between px-8 h-16 border-b border-slate-100 bg-white">
         <div className="flex items-center">
           {logoUrl
@@ -109,7 +109,7 @@ function OptionCard({
         <div className="w-14 h-14 rounded-2xl bg-white shadow-card flex items-center justify-center text-2xl mb-5">
           {icon}
         </div>
-        <h2 className="text-xl font-semibold text-slate-800">{title}</h2>
+        <h2 className="text-xl font-semibold tracking-tight text-slate-800">{title}</h2>
         <p className="text-sm text-slate-500 mt-2 leading-relaxed max-w-sm">{description}</p>
         <span className={`inline-block mt-6 text-sm font-medium text-white px-5 py-2.5 rounded-full ${button}`}>
           {cta} →

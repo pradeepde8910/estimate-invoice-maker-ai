@@ -5,6 +5,7 @@ import Card from '../components/Card'
 import Stepper from '../components/Stepper'
 import CircularGauge from '../components/CircularGauge'
 import EstimationResult from '../components/EstimationResult'
+import ClientDetailsEditor from '../components/ClientDetailsEditor'
 import { useJob } from '../JobContext'
 import { createJob, cancelJob } from '../api/client'
 import type { Job } from '../api/types'
@@ -82,7 +83,7 @@ export default function NewEstimation() {
   }
 
   return (
-    <div className="flex-1">
+    <div className="flex-1 bg-slate-50 min-h-screen">
       <Topbar showBack title="New Estimation" subtitle="Upload a requirement document to get an AI-generated cost & timeline estimate." />
       <div className="p-8 space-y-6">
         {!showForm && (
@@ -173,7 +174,19 @@ export default function NewEstimation() {
         )}
 
         {!showForm && job?.status === 'complete' && job.result && (
-          <EstimationResult result={job.result} docSource="job" docId={job.id} baseName={job.base_name} />
+          <>
+            {!job.result.converted_project_id && (
+              <ClientDetailsEditor 
+                baseName={job.base_name || ''} 
+                clientInfo={job.result.client_info} 
+                onSaved={(newInfo) => {
+                  // Not strictly needed since a reload or navigating to the project will fetch the updated DB record,
+                  // but we could theoretically update local state here if job context exposed a setter.
+                }} 
+              />
+            )}
+            <EstimationResult result={job.result} docSource="job" docId={job.id} baseName={job.base_name} />
+          </>
         )}
       </div>
     </div>

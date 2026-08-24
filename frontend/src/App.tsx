@@ -17,6 +17,14 @@ import Login from './pages/Login'
 import ProtectedRoute from './components/ProtectedRoute'
 import { JobProvider } from './JobContext'
 import ErrorBoundary from './components/ErrorBoundary'
+import Projects from './pages/Projects'
+import ProjectDetail from './pages/ProjectDetail'
+import NewInvoiceV2 from './pages/NewInvoiceV2'
+import InvoiceViewV2 from './pages/InvoiceViewV2'
+import NewStandaloneInvoice from './pages/NewStandaloneInvoice'
+
+import { BillingClassifications } from './pages/admin/BillingClassifications'
+import ResourceCatalog from './pages/admin/ResourceCatalog'
 
 const router = createBrowserRouter(
   createRoutesFromElements(
@@ -32,17 +40,22 @@ const router = createBrowserRouter(
           <Route path="list" element={<EstimationList />} />
           <Route path="rate-card" element={<RateCardPage />} />
           <Route path="organization" element={<OrganizationSettings />} />
+          <Route path="resource-catalog" element={<ResourceCatalog />} />
           <Route path="document/base/:baseName/:type" element={<DocumentView source="base" />} />
           <Route path="document/:jobId/:type" element={<DocumentView source="job" />} />
           <Route path=":baseName" element={<EstimationDetail />} />
         </Route>
 
         <Route path="/invoice" element={<InvoiceLayout />}>
-          <Route index element={<InvoiceDashboard />} />
-          <Route path="new" element={<NewInvoice />} />
-          <Route path="list" element={<InvoiceHistory />} />
+          <Route index element={<Projects />} />
+          <Route path="projects/:projectId" element={<ProjectDetail />} />
+          <Route path="projects/:projectId/new-invoice" element={<NewInvoiceV2 />} />
+          <Route path="projects/:projectId/invoice/:invoiceId" element={<InvoiceViewV2 />} />
+          <Route path="standalone/new" element={<NewStandaloneInvoice />} />
+          <Route path="standalone/:invoiceId" element={<InvoiceViewV2 />} />
           <Route path="organization" element={<OrganizationSettings />} />
-          <Route path=":baseName" element={<InvoiceDetail />} />
+          <Route path="classifications" element={<BillingClassifications />} />
+          <Route path="resource-catalog" element={<ResourceCatalog />} />
         </Route>
       </Route>
 

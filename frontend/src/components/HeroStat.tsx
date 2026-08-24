@@ -1,13 +1,13 @@
 const TONES = {
   mint: {
-    bg: 'bg-gradient-to-br from-brand-50 via-white to-white',
-    blob: 'bg-brand-200/70',
-    text: 'text-brand-700',
+    bg: 'bg-gradient-to-br from-teal-50/50 via-white to-white border border-teal-100/30',
+    blob: 'bg-teal-100/40',
+    text: 'text-teal-700',
   },
   coral: {
-    bg: 'bg-gradient-to-br from-coral-50 via-white to-white',
-    blob: 'bg-coral-200/60',
-    text: 'text-coral-600',
+    bg: 'bg-gradient-to-br from-rose-50/50 via-white to-white border border-rose-100/30',
+    blob: 'bg-rose-100/40',
+    text: 'text-rose-700',
   },
 }
 
@@ -29,7 +29,7 @@ export default function HeroStat({
       <div className="relative min-w-0">
         <div className="text-sm font-medium text-slate-500">{label}</div>
         <div
-          className={`text-3xl font-bold mt-2 truncate ${t.text}`}
+          className={`text-3xl font-bold tracking-tight mt-2 truncate ${t.text}`}
           title={typeof value === 'string' ? value : undefined}
         >
           {value}
