@@ -2,6 +2,15 @@ import React, { createContext, useCallback, useContext, useEffect, useRef, useSt
 import { getJob, ApiError } from './api/client'
 import type { Job } from './api/types'
 
+/** Percentage through the estimation pipeline, derived client-side since the
+ * backend doesn't return one — kept here so the sidebar badge and the
+ * NewEstimation gauge never drift apart. */
+export function getJobProgressPct(job: Job | null): number {
+  if (!job || job.status === 'queued') return 4
+  if (job.status === 'complete') return 100
+  return Math.round(((job.step_index + 1) / job.steps.length) * 100)
+}
+
 interface JobContextValue {
   jobId: string | null
   job: Job | null

@@ -126,7 +126,10 @@ class ApiPricingRule(Base):
     pricing_model = Column(String(30), nullable=False, default="PER_UNIT")
     # FLAT | PER_UNIT | TIERED | SUBSCRIPTION_PLUS_USAGE | MINIMUM_COMMITMENT
     unit_type = Column(String(50), nullable=True)  # e.g. MINUTE, TOKENS_1M, GB_MONTH, PAGE, REQUEST — null for FLAT
-    price = Column(Numeric(12, 4), nullable=False)
+    # Numeric(14, 6): per-unit AI/API pricing routinely goes down to
+    # fractions of a cent (e.g. $0.000015/character) — Numeric(12, 4) silently
+    # rounded several real seeded prices to 0.0000 or the wrong 4th decimal.
+    price = Column(Numeric(14, 6), nullable=False)
     currency = Column(String(10), nullable=False, default="INR")
     minimum_commitment = Column(Numeric(12, 2), nullable=True)
     tier_config = Column(Text, nullable=True)  # JSON text, only used when pricing_model = TIERED

@@ -18,6 +18,10 @@ class Invoice(Base):
     project_id = Column(String(36), ForeignKey("projects.id", ondelete="RESTRICT"), nullable=True)
     client_id = Column(String(36), ForeignKey("clients.id", ondelete="RESTRICT"), nullable=False)
     
+    # Legacy V1 Compatibility
+    estimation_id = Column(String(255), ForeignKey("estimations.id", ondelete="RESTRICT"), nullable=True)
+    invoice_html = Column(Text, nullable=True)
+    
     # Client Snapshot
     client_name = Column(String(255), nullable=True)
     client_address = Column(Text, nullable=True)
@@ -61,6 +65,7 @@ class Invoice(Base):
     )
 
     project = relationship("Project", back_populates="invoices")
+    estimation = relationship("Estimation", back_populates="invoices")
     items = relationship("InvoiceItem", back_populates="invoice", cascade="all, delete-orphan")
     taxes = relationship("InvoiceTax", back_populates="invoice", cascade="all, delete-orphan")
     tds = relationship("InvoiceTDS", back_populates="invoice", uselist=False, cascade="all, delete-orphan")

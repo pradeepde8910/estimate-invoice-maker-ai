@@ -450,34 +450,30 @@ def create_invoice(session: Session, project_id: str, request: InvoiceCreateRequ
         # Update milestone statuses for task-level billing
         milestone_ids = {i.milestone_id for i in invoice_items_to_create if i.milestone_id}
         if milestone_ids:
-            from v1.db import SessionLocal as V1SessionLocal
-            from v1.db import Estimation
-            v1_db = V1SessionLocal()
-            try:
-                est = v1_db.query(Estimation).filter(Estimation.id == project.estimation_id).first()
-                if est and est.raw_pipeline_json:
-                    cost_data = est.raw_pipeline_json.get("cost_estimation", est.raw_pipeline_json)
-                    unit_estimates = cost_data.get("unit_estimates", [])
-                    
-                    for mid in milestone_ids:
-                        m = session.query(ProjectMilestone).filter_by(id=mid).first()
-                        if m:
-                            unit = next((u for u in unit_estimates if u.get("unit_id") == m.source_unit_id), None)
-                            if unit:
-                                total_tasks = sum(len(r.get("implementation_tasks", [])) for r in unit.get("requirement_estimates", []))
-                                billed_tasks = session.query(InvoiceItem).filter(
-                                    InvoiceItem.milestone_id == m.id,
-                                    InvoiceItem.task_key.isnot(None)
-                                ).join(InvoiceItem.invoice).filter(
-                                    Invoice.status.in_(["ISSUED", "DRAFT"])
-                                ).count()
-                                
-                                if total_tasks > 0 and billed_tasks >= total_tasks:
-                                    m.status = "BILLED"
-                                else:
-                                    m.status = "PARTIALLY_BILLED"
-            finally:
-                v1_db.close()
+            from app.models.estimation import Estimation
+            est = session.query(Estimation).filter(Estimation.id == project.estimation_id).first()
+            if est and est.raw_pipeline_json:
+                cost_data = est.raw_pipeline_json.get("cost_estimation", est.raw_pipeline_json)
+                unit_estimates = cost_data.get("unit_estimates", [])
+                
+                for mid in milestone_ids:
+                    m = session.query(ProjectMilestone).filter_by(id=mid).first()
+                    if m:
+                        unit = next((u for u in unit_estimates if u.get("unit_id") == m.source_unit_id), None)
+                        if unit:
+                            total_tasks = sum(len(r.get("implementation_tasks", [])) for r in unit.get("requirement_estimates", []))
+                            billed_tasks = session.query(InvoiceItem).filter(
+                                InvoiceItem.milestone_id == m.id,
+                                InvoiceItem.task_key.isnot(None)
+                            ).join(InvoiceItem.invoice).filter(
+                                Invoice.status.in_(["ISSUED", "DRAFT"])
+                            ).count()
+                            
+                            if total_tasks > 0 and billed_tasks >= total_tasks:
+                                m.status = "BILLED"
+                            else:
+                                m.status = "PARTIALLY_BILLED"
+            
                 
         session.commit()
         session.refresh(invoice)

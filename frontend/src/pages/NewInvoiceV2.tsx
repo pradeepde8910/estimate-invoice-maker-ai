@@ -194,8 +194,8 @@ export default function NewInvoiceV2() {
           <Card title={reqsTitle}>
             <div className="space-y-5">
               {billingPreview.milestones.map((m: any) => (
-                <div key={m.id} className="rounded-lg border border-slate-200 overflow-hidden">
-                  <div className="bg-slate-50 px-4 py-2 text-sm font-medium text-slate-700 border-b border-slate-200">
+                <div key={m.id} className="rounded-lg border border-slate-200">
+                  <div className="bg-slate-50 rounded-t-lg px-4 py-2 text-sm font-medium text-slate-700 border-b border-slate-200">
                     {m.name}
                   </div>
                   <div className="divide-y divide-slate-100">

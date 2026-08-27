@@ -6,7 +6,7 @@ import Stepper from '../components/Stepper'
 import CircularGauge from '../components/CircularGauge'
 import EstimationResult from '../components/EstimationResult'
 import ClientDetailsEditor from '../components/ClientDetailsEditor'
-import { useJob } from '../JobContext'
+import { useJob, getJobProgressPct } from '../JobContext'
 import { createJob, cancelJob } from '../api/client'
 import type { Job } from '../api/types'
 
@@ -62,12 +62,7 @@ export default function NewEstimation() {
 
   const isActive = job?.status === 'queued' || job?.status === 'running'
 
-  const progressPct =
-    !job || job.status === 'queued'
-      ? 4
-      : job.status === 'complete'
-      ? 100
-      : Math.round(((job.step_index + 1) / job.steps.length) * 100)
+  const progressPct = getJobProgressPct(job)
 
   async function handleCancel() {
     if (!jobId) return

@@ -3,7 +3,7 @@ import { NavLink } from 'react-router-dom'
 import { logout } from '../api/client'
 import ConfirmModal from './ConfirmModal'
 import { useLogo } from '../hooks/useLogo'
-import { useJob } from '../JobContext'
+import { useJob, getJobProgressPct } from '../JobContext'
 
 
 interface NavItem {
@@ -37,6 +37,7 @@ export default function WorkspaceSidebar({ workspace }: { workspace: 'estimation
   const logoUrl = useLogo()
   const { job, setJobId } = useJob()
   const jobIsActive = job?.status === 'queued' || job?.status === 'running'
+  const jobProgressPct = getJobProgressPct(job)
 
   return (
     <aside className="print:hidden w-64 shrink-0 bg-white flex flex-col h-screen sticky top-0">
@@ -74,7 +75,15 @@ export default function WorkspaceSidebar({ workspace }: { workspace: 'estimation
             }
           >
             <Icon className="w-5 h-5 shrink-0" />
-            {label}
+            <span className="flex-1">{label}</span>
+            {to === '/estimation/new' && jobIsActive && (
+              <span
+                className="shrink-0 text-[11px] font-semibold text-brand-700 bg-brand-100 rounded-full px-2 py-0.5 tabular-nums"
+                title="Estimation in progress"
+              >
+                {jobProgressPct}%
+              </span>
+            )}
           </NavLink>
         ))}
       </nav>

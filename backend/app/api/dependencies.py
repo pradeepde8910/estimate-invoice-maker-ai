@@ -1,38 +1,14 @@
 from fastapi import Depends, HTTPException, Security, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
-from typing import List, Optional
-import base64
-import json
-import hmac
-import hashlib
-import time
+from typing import Optional
 
-from app.database import SessionLocal, get_db
-from app.models.master import User
+from app.core.database import get_db
+from app.models.user import User
 from app import config
+from app.core.security import decode_access_token, verify_qa_api_key
 
 security = HTTPBearer(auto_error=False)
-
-def decode_token(token: str) -> dict:
-    """Verifies the HMAC signature and expiry and returns the decoded payload."""
-    try:
-        parts = token.split(".")
-        if len(parts) != 2:
-            return None
-        payload_b64, signature = parts
-        expected_signature = hmac.new(config.JWT_SECRET.encode(), payload_b64.encode(), hashlib.sha256).hexdigest()
-        if not hmac.compare_digest(signature, expected_signature):
-            return None
-
-        padding = "=" * (4 - len(payload_b64) % 4)
-        payload_json = base64.urlsafe_b64decode(payload_b64 + padding).decode()
-        payload = json.loads(payload_json)
-        if int(time.time()) > payload.get("exp", 0):
-            return None
-        return payload
-    except Exception:
-        return None
 
 def get_current_user(
     request: Request,
@@ -40,27 +16,36 @@ def get_current_user(
     db: Session = Depends(get_db)
 ) -> User:
     """Authenticates the user and fetches the user object.
-
-    Requests authenticated via the QA X-API-Key (see v1's auth_middleware)
-    carry no Authorization header at all; they resolve to
-    request.state.qa_authenticated_username instead, so QA/staging tooling
-    can exercise these v2 endpoints the same way v1's get_current_username
-    already does.
+    
+    Handles both JWT authentication (Bearer token) and QA API Key authentication.
     """
-    qa_username = getattr(request.state, "qa_authenticated_username", None)
-    if qa_username:
-        user = db.query(User).filter(User.username == qa_username).first()
-        if user:
-            return user
-        if qa_username == config.ADMIN_USERNAME:
-            return User(id="bootstrap-admin", username=qa_username, role="Admin")
-        raise HTTPException(status_code=401, detail="Account no longer exists or is inactive")
+    # 1. Check QA API Key first
+    api_key = request.headers.get("X-API-Key")
+    if api_key:
+        if verify_qa_api_key(api_key):
+            qa_username = config.QA_TEST_USERNAME
+            user = db.query(User).filter(User.username == qa_username).first()
+            if user:
+                # Optionally, you could attach auth_method to the user object here
+                setattr(user, "auth_method", "qa_api_key")
+                return user
+            
+            # Bootstrap fallback for QA API Key
+            if qa_username == config.ADMIN_USERNAME:
+                bootstrap_user = User(id="bootstrap-admin", username=qa_username, role="Admin")
+                setattr(bootstrap_user, "auth_method", "qa_api_key")
+                return bootstrap_user
+                
+            raise HTTPException(status_code=401, detail="QA Account no longer exists or is inactive")
+        else:
+            raise HTTPException(status_code=401, detail="Invalid API Key or QA mode disabled")
 
+    # 2. Check JWT Credentials
     if credentials is None:
         raise HTTPException(status_code=401, detail="Unauthorized. Please log in.")
 
     token = credentials.credentials
-    payload = decode_token(token)
+    payload = decode_access_token(token)
     
     if not payload:
         raise HTTPException(status_code=401, detail="Session expired or invalid token")
@@ -71,10 +56,14 @@ def get_current_user(
         
     user = db.query(User).filter(User.username == username).first()
     if not user:
+        # Bootstrap fallback for JWT
         if username == config.ADMIN_USERNAME:
-            return User(id="bootstrap-admin", username=username, role="Admin")
+            bootstrap_user = User(id="bootstrap-admin", username=username, role="Admin")
+            setattr(bootstrap_user, "auth_method", "jwt")
+            return bootstrap_user
         raise HTTPException(status_code=401, detail="Account no longer exists or is inactive")
         
+    setattr(user, "auth_method", "jwt")
     return user
 
 def require_roles(*allowed_roles: str):

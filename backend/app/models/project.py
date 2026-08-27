@@ -6,6 +6,8 @@ from app.models.base import Base
 
 class Project(Base):
     __tablename__ = "projects"
+    
+    invoices = relationship("Invoice", back_populates="project")
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     client_id = Column(String(36), ForeignKey("clients.id", ondelete="RESTRICT"), nullable=False)
@@ -23,7 +25,7 @@ class Project(Base):
     billing_config = relationship("ProjectBillingConfig", back_populates="project", uselist=False, cascade="all, delete-orphan")
     milestones = relationship("ProjectMilestone", back_populates="project", cascade="all, delete-orphan")
     commercial_components = relationship("ProjectCommercialComponent", back_populates="project", cascade="all, delete-orphan")
-    invoices = relationship("Invoice", back_populates="project", cascade="all, delete-orphan")
+    # invoices = relationship("Invoice", back_populates="project", cascade="all, delete-orphan")
 
     @property
     def billing_type(self) -> str | None:

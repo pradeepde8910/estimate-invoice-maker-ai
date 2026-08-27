@@ -25,6 +25,18 @@ export default function ClassificationPicker({
   const [open, setOpen] = useState(false)
   const debounceRef = useRef<number>()
   const lastAutoDescription = useRef<string>('')
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    function handlePointerDown(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handlePointerDown)
+    return () => document.removeEventListener('mousedown', handlePointerDown)
+  }, [open])
 
   useEffect(() => {
     if (!description || description.trim().length < 3) {
@@ -55,7 +67,7 @@ export default function ClassificationPicker({
   }, [description])
 
   return (
-    <div className="relative">
+    <div className="relative" ref={containerRef} onMouseLeave={() => setOpen(false)}>
       <label className="block text-xs font-medium text-slate-500 mb-1">Billing Classification (HSN/SAC)</label>
       <button
         type="button"

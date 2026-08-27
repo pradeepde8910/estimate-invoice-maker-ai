@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 
 from app.database import get_db
 from app.api.dependencies import require_roles
 from app.schemas.project_summary import ProjectFinancialSummary
-from app.api.invoice import InvoiceResponse
+from app.api.invoices import InvoiceResponse
 from app.schemas.payment import PaymentResponse
 # Assuming we have a MilestoneResponse schema in project schemas, otherwise just returning dicts or generic responses.
 # I will use a local simple schema for milestones if not available, or just dicts for now to meet the requirements.
@@ -15,9 +15,9 @@ from datetime import date
 
 class MilestoneSimpleResponse(BaseModel):
     id: str
-    milestone_name: str
+    name: str
     amount: Decimal
-    target_date: date
+    due_date: Optional[date] = None
     status: str
 
     class Config:

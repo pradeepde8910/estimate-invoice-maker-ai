@@ -91,7 +91,8 @@ SLOT_KEYS = ["logo_path", "signature_path", "seal_path"]
 
 def load_profile() -> dict:
     import traceback
-    from db import SessionLocal, OrganizationProfile
+    from app.core.database import SessionLocal
+    from app.models.organization import OrganizationProfile
     db = SessionLocal()
     try:
         profile_row = db.query(OrganizationProfile).first()
@@ -117,7 +118,8 @@ def load_profile() -> dict:
 
 def save_profile(fields: dict) -> dict:
     import traceback
-    from db import SessionLocal, OrganizationProfile
+    from app.core.database import SessionLocal
+    from app.models.organization import OrganizationProfile
     db = SessionLocal()
     try:
         profile_row = db.query(OrganizationProfile).first()
@@ -158,7 +160,8 @@ def save_branding_file(slot: str, filename: str, content: bytes) -> dict:
         existing.unlink(missing_ok=True)
     dest.write_bytes(content)
 
-    from db import SessionLocal, OrganizationProfile
+    from app.core.database import SessionLocal
+    from app.models.organization import OrganizationProfile
     db = SessionLocal()
     try:
         # Primary: update the OrganizationProfile path reference
@@ -186,7 +189,8 @@ def save_branding_file(slot: str, filename: str, content: bytes) -> dict:
     # assets survive ephemeral-filesystem redeploys. If the table doesn't
     # exist yet (first deploy before migration runs) this silently skips.
     try:
-        from db import SessionLocal as _SL, BrandingAsset
+        from app.core.database import SessionLocal as _SL
+        from app.models.organization import BrandingAsset
         _db = _SL()
         try:
             asset = _db.query(BrandingAsset).filter(BrandingAsset.slot == slot).first()
@@ -228,7 +232,8 @@ def remove_branding_file(slot: str) -> dict:
     for existing in BRANDING_DIR.glob(f"{slot}.*"):
         existing.unlink(missing_ok=True)
 
-    from db import SessionLocal, OrganizationProfile, BrandingAsset
+    from app.core.database import SessionLocal
+    from app.models.organization import OrganizationProfile, BrandingAsset
     db = SessionLocal()
     try:
         asset = db.query(BrandingAsset).filter(BrandingAsset.slot == slot).first()
