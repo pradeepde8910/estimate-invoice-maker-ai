@@ -239,14 +239,14 @@ export default function ResourceCatalog() {
                     (m.capability?.name || '').toLowerCase().includes(safeSearch)
                   );
                   
-                  const grouped = filtered.reduce((acc, m) => {
-                    const key = groupBy === 'provider' 
-                      ? (m.provider?.name || 'Unknown Provider') 
+                  const grouped = filtered.reduce<Record<string, any[]>>((acc, m) => {
+                    const key = groupBy === 'provider'
+                      ? (m.provider?.name || 'Unknown Provider')
                       : (m.capability?.name || 'Unknown Capability');
                     if (!acc[key]) acc[key] = [];
                     acc[key].push(m);
                     return acc;
-                  }, {} as Record<string, any[]>);
+                  }, {});
 
                   if (Object.keys(grouped).length === 0) {
                     return <p className="text-sm text-slate-400 dark:text-slate-500 py-4 text-center">No models found.</p>;
