@@ -80,7 +80,7 @@ export default function RateCardPage() {
   }
 
   return (
-    <div className="flex-1 bg-slate-50 min-h-screen">
+    <div className="flex-1 bg-transparent min-h-screen">
       <Topbar showBack title="Rate Card" subtitle="Hourly rates used by the estimation agent for cost calculations." />
       <div className="p-6 max-w-3xl">
         <Card

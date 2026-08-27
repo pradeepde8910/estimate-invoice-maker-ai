@@ -8,6 +8,12 @@ interface JobContextValue {
   setJobId: (id: string | null) => void
   notifications: string[]
   clearNotifications: () => void
+  /** Re-fetches the current job once and updates `job` with the result.
+   * Needed because polling stops once a job reaches 'complete' (see the
+   * effect below) — so any change made after that point (e.g. confirming
+   * client identity from the estimation-result screen) has no other way
+   * to reach the `job` object callers are still reading from. */
+  refreshJob: () => Promise<void>
 }
 
 const JobContext = createContext<JobContextValue | null>(null)
@@ -76,8 +82,20 @@ export function JobProvider({ children }: { children: React.ReactNode }) {
 
   const clearNotifications = useCallback(() => setNotifications([]), [])
 
+  const refreshJob = useCallback(async () => {
+    if (!jobId) return
+    try {
+      const j = await getJob(jobId)
+      setJob(j)
+    } catch {
+      // Best-effort — if this fails the caller's own UI already reflects
+      // what it just saved locally; a stale `job` object here just means
+      // the next unrelated re-render shows old data, not a broken save.
+    }
+  }, [jobId])
+
   return (
-    <JobContext.Provider value={{ jobId, job, setJobId, notifications, clearNotifications }}>
+    <JobContext.Provider value={{ jobId, job, setJobId, notifications, clearNotifications, refreshJob }}>
       {children}
     </JobContext.Provider>
   )

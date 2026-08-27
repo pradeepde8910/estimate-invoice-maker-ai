@@ -4,21 +4,16 @@ export const GSTIN_RE = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/
 export const WEBSITE_RE = /^(https?:\/\/)?([\w.-]+)\.([a-z]{2,6})([\/\w .-]*)*\/?$/i
 export const UPI_ID_RE = /^[\w.-]{2,256}@[a-zA-Z]{2,64}$/
 
+// Cosmetic-only: uppercase, strip anything that isn't alphanumeric, cap at 15
+// characters. Deliberately does NOT enforce per-position character classes
+// (digit here, letter there) while typing — an earlier version did, and a
+// single character that didn't fit its expected slot was silently dropped
+// instead of just being left for the field's real validator (GSTIN_RE) to
+// catch, which made correcting or pasting a GSTIN feel like typing got
+// "stuck" partway through. GSTIN_RE (checked on submit wherever this is
+// used) is the sole authority on whether the final value is a valid GSTIN.
 export function formatGSTIN(val: string): string {
-  const v = val.toUpperCase().replace(/[^A-Z0-9]/g, '')
-  let filtered = ''
-  for (let i = 0; i < v.length && filtered.length < 15; i++) {
-    const c = v[i]
-    const pos = filtered.length
-    if (pos < 2 && /[0-9]/.test(c)) filtered += c
-    else if (pos >= 2 && pos < 7 && /[A-Z]/.test(c)) filtered += c
-    else if (pos >= 7 && pos < 11 && /[0-9]/.test(c)) filtered += c
-    else if (pos === 11 && /[A-Z]/.test(c)) filtered += c
-    else if (pos === 12 && /[1-9A-Z]/.test(c)) filtered += c
-    else if (pos === 13 && c === 'Z') filtered += c
-    else if (pos === 14 && /[0-9A-Z]/.test(c)) filtered += c
-  }
-  return filtered
+  return val.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 15)
 }
 
 export function formatPhone(val: string): string {

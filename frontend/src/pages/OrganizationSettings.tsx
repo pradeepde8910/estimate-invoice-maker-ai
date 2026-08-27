@@ -228,7 +228,7 @@ export default function OrganizationSettings() {
   const uploadInputRef = useRef<HTMLInputElement>(null)
 
   return (
-    <div className="flex-1 bg-slate-50 min-h-screen">
+    <div className="flex-1 bg-transparent min-h-screen">
       <Topbar showBack title="Organization Settings" subtitle="Branding shown on every generated document — quotation, BRD, SRS, and invoice." />
       <div className="p-8 max-w-3xl space-y-6">
         {error && <div className="text-sm text-coral-600 bg-coral-50 rounded-2xl px-4 py-3">{error}</div>}

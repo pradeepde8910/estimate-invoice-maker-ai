@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 export default function Topbar({ title, subtitle, showBack = false, onBack, children }: { title: string; subtitle?: string; showBack?: boolean; onBack?: () => void; children?: React.ReactNode }) {
   const navigate = useNavigate()
   return (
-    <header className="flex items-center justify-between gap-4 px-8 h-20 bg-white border-b border-slate-200 shadow-sm sticky top-0 z-50">
+    <header className="print:hidden flex items-center justify-between gap-4 px-8 h-20 bg-white border-b border-slate-200 shadow-sm sticky top-0 z-50">
       <div className="flex items-center gap-4 min-w-0">
         {showBack && (
           <button

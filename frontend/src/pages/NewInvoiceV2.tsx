@@ -187,7 +187,7 @@ export default function NewInvoiceV2() {
   const reqsTitle = `${summary?.delivery_unit_label || 'Milestone'} Requirements to Bill`;
 
   return (
-    <div className="flex-1 bg-slate-50 min-h-screen">
+    <div className="flex-1 bg-transparent min-h-screen">
       <Topbar showBack title="Create Invoice" subtitle={`Project: ${summary.project_name}`} />
       <div className="p-8 space-y-6 max-w-4xl mx-auto">
         {billingPreview?.milestones?.length > 0 && (

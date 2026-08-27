@@ -1,3 +1,5 @@
+import re
+from datetime import datetime, timedelta
 from decimal import Decimal
 from sqlalchemy.orm import Session
 from typing import Optional
@@ -58,6 +60,30 @@ def generate_invoice_number(session: Session, fy: str) -> str:
 
     # Format: INV/2026-27/0001
     return f"INV/{fy}/{current:04d}"
+
+# Used when the caller doesn't pass explicit payment_terms — the invoice
+# still needs a real due_date (for aging/outstanding reports and the PDF's
+# "Invoice Details" block, which previously showed nothing at all because
+# invoice_date/due_date were never set anywhere in this module), even
+# without a client-agreed term to base it on.
+DEFAULT_DUE_DAYS = 15
+_NET_TERMS_RE = re.compile(r"net\s*-?\s*(\d+)", re.IGNORECASE)
+
+
+def _compute_invoice_dates(payment_terms: Optional[str]) -> tuple[datetime, datetime]:
+    """
+    Returns (invoice_date, due_date) for a newly created invoice.
+    invoice_date is always "now" — due_date is parsed from payment_terms
+    (e.g. "Net 30" -> +30 days) when possible, else DEFAULT_DUE_DAYS out.
+    """
+    invoice_date = datetime.utcnow()
+    days = DEFAULT_DUE_DAYS
+    if payment_terms:
+        match = _NET_TERMS_RE.search(payment_terms)
+        if match:
+            days = int(match.group(1))
+    return invoice_date, invoice_date + timedelta(days=days)
+
 
 from app.models.project_component import ProjectCommercialComponent
 
@@ -338,6 +364,7 @@ def create_standalone_invoice(session: Session, request) -> Invoice:
 
         fy = get_financial_year()
         invoice_number = generate_invoice_number(session, fy)
+        invoice_date, due_date = _compute_invoice_dates(request.payment_terms)
 
         invoice = Invoice(
             invoice_number=invoice_number,
@@ -345,6 +372,8 @@ def create_standalone_invoice(session: Session, request) -> Invoice:
             project_id=None,
             client_id=client.id,
             status="DRAFT",
+            invoice_date=invoice_date,
+            due_date=due_date,
             client_name=client.company_name,
             client_address=client.billing_address,
             client_gstin=client.gstin,
@@ -388,6 +417,7 @@ def create_invoice(session: Session, project_id: str, request: InvoiceCreateRequ
         # 4. Generate number
         fy = get_financial_year()
         invoice_number = generate_invoice_number(session, fy)
+        invoice_date, due_date = _compute_invoice_dates(request.payment_terms)
 
         # 5. Assemble Invoice
         invoice = Invoice(
@@ -396,6 +426,8 @@ def create_invoice(session: Session, project_id: str, request: InvoiceCreateRequ
             project_id=project_id,
             client_id=client.id,
             status="DRAFT",
+            invoice_date=invoice_date,
+            due_date=due_date,
             client_name=client.company_name,
             client_address=client.billing_address,
             client_gstin=client.gstin,

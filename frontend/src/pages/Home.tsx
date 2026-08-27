@@ -18,7 +18,7 @@ export default function Home() {
   }
 
   return (
-    <div className="flex-1 min-h-screen bg-slate-50">
+    <div className="flex-1 min-h-screen bg-transparent">
       <header className="flex items-center justify-between px-8 h-16 border-b border-slate-100 bg-white">
         <div className="flex items-center">
           {logoUrl

@@ -86,7 +86,7 @@ export default function EstimationDetail() {
   }, [baseName])
 
   return (
-    <div className="flex-1 bg-slate-50 min-h-screen">
+    <div className="flex-1 bg-transparent min-h-screen">
       <Topbar showBack title={result?.client_name || 'Estimation'} subtitle={result?.project_name}>
         {result && (
           <>

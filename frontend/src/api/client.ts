@@ -28,21 +28,37 @@ export class ApiError extends Error {
   }
 }
 
+// Shared by every error path below (both json() and the blob/download
+// helpers) so a FastAPI/pydantic validation error — an array of
+// {type, loc, msg, ctx} objects — always reads as a plain sentence instead
+// of a raw JSON dump, regardless of which function hit the failing request.
+function extractErrorMessage(text: string, fallbackStatus: number): string {
+  try {
+    const parsed = JSON.parse(text)
+    if (parsed.detail) {
+      if (typeof parsed.detail === 'string') {
+        return parsed.detail
+      }
+      if (Array.isArray(parsed.detail) && parsed.detail.every((d: any) => d?.msg)) {
+        return parsed.detail.map((d: any) => String(d.msg).replace(/^Value error, /, '')).join('; ')
+      }
+      return JSON.stringify(parsed.detail)
+    }
+    if (parsed.message) return parsed.message
+  } catch {
+    // not JSON, fall through to raw text
+  }
+  return text || `Request failed (${fallbackStatus})`
+}
+
+async function throwApiError(res: Response): Promise<never> {
+  const text = await res.text().catch(() => res.statusText)
+  throw new ApiError(res.status, extractErrorMessage(text, res.status))
+}
+
 async function json<T>(res: Response): Promise<T> {
   if (!res.ok) {
-    const text = await res.text().catch(() => res.statusText)
-    let errorMessage = text
-    try {
-      const parsed = JSON.parse(text)
-      if (parsed.detail) {
-        errorMessage = typeof parsed.detail === 'string' ? parsed.detail : JSON.stringify(parsed.detail)
-      } else if (parsed.message) {
-        errorMessage = parsed.message
-      }
-    } catch (e) {
-      // not JSON, keep original text
-    }
-    throw new ApiError(res.status, errorMessage || `Request failed (${res.status})`)
+    await throwApiError(res)
   }
   return res.json()
 }
@@ -100,6 +116,22 @@ export async function listDbClients(): Promise<{ clients: any[] }> {
 // client ids are NOT interchangeable.
 export async function listMasterClients(): Promise<any[]> {
   const res = await fetch(`${BASE}/master/clients`)
+  return json(res)
+}
+
+export async function createMasterClient(data: {
+  company_name?: string | null
+  contact_person?: string | null
+  email?: string | null
+  phone?: string | null
+  gstin?: string | null
+  billing_address?: string | null
+}): Promise<any> {
+  const res = await fetch(`${BASE}/master/clients`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
   return json(res)
 }
 
@@ -189,8 +221,7 @@ export function documentPdfUrl(baseName: string, docType: string) {
 export async function openDocumentPdf(baseName: string, docType: string) {
   const res = await fetch(documentPdfUrl(baseName, docType))
   if (!res.ok) {
-    const text = await res.text().catch(() => res.statusText)
-    throw new ApiError(res.status, text || `Request failed (${res.status})`)
+    await throwApiError(res)
   }
   const blob = await res.blob()
   const url = URL.createObjectURL(blob)
@@ -201,11 +232,42 @@ export async function openDocumentPdf(baseName: string, docType: string) {
   setTimeout(() => URL.revokeObjectURL(url), 60_000)
 }
 
+async function downloadBlobAs(res: Response, filename: string) {
+  if (!res.ok) {
+    await throwApiError(res)
+  }
+  const blob = await res.blob()
+  if (blob.size === 0) {
+    throw new ApiError(500, 'The server returned an empty file.')
+  }
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  setTimeout(() => URL.revokeObjectURL(url), 60_000)
+}
+
+// Complete multi-sheet estimation workbook (overview, timeline with Gantt
+// chart, cost breakdowns, requirements, task-level detail, team,
+// infrastructure/license costs, risks/assumptions — each with charts where
+// there's something worth visualizing).
+export async function downloadEstimationExcel(baseName: string) {
+  const res = await fetch(`${BASE}/documents/${encodeURIComponent(baseName)}/excel`)
+  await downloadBlobAs(res, `${baseName}_estimation.xlsx`)
+}
+
+// Standalone timeline-only workbook (phases + Gantt chart) — for when just
+// the schedule is needed rather than the full estimation.
+export async function downloadEstimationTimelineExcel(baseName: string) {
+  const res = await fetch(`${BASE}/documents/${encodeURIComponent(baseName)}/timeline/excel`)
+  await downloadBlobAs(res, `${baseName}_timeline.xlsx`)
+}
+
 export async function downloadInvoicePdf(invoiceId: string) {
   const res = await fetch(`${BASE}/invoices/${invoiceId}/pdf`)
   if (!res.ok) {
-    const text = await res.text().catch(() => res.statusText)
-    throw new ApiError(res.status, text || `Request failed (${res.status})`)
+    await throwApiError(res)
   }
   const blob = await res.blob()
   const url = URL.createObjectURL(blob)
@@ -237,8 +299,7 @@ export async function downloadInvoiceStatement(
     }),
   })
   if (!res.ok) {
-    const text = await res.text().catch(() => res.statusText)
-    throw new ApiError(res.status, text || `Request failed (${res.status})`)
+    await throwApiError(res)
   }
   const blob = await res.blob()
   const url = URL.createObjectURL(blob)
@@ -268,8 +329,7 @@ export async function downloadProjectStatement(opts: {
     }),
   })
   if (!res.ok) {
-    const text = await res.text().catch(() => res.statusText)
-    throw new ApiError(res.status, text || `Request failed (${res.status})`)
+    await throwApiError(res)
   }
   const blob = await res.blob()
   const url = URL.createObjectURL(blob)
@@ -277,6 +337,53 @@ export async function downloadProjectStatement(opts: {
   a.href = url
   const extension = format === 'excel' ? 'xlsx' : format
   a.download = `projects_statement.${extension}`
+  a.click()
+  setTimeout(() => URL.revokeObjectURL(url), 60_000)
+}
+
+export interface ReportFilters {
+  client_id?: string | null
+  project_id?: string | null
+  project_ids?: string[] | null
+  from_date?: string | null
+  to_date?: string | null
+  statuses?: string[] | null
+  billing_type?: string | null
+}
+
+// Generic entry point over the backend's report engine (PROJECT, INVOICE,
+// PAYMENT, OUTSTANDING, MILESTONE — see backend/app/api/report.py) — the
+// single place every report/export UI in the app should route through,
+// rather than each screen hand-rolling its own fetch/blob/download dance.
+export async function exportReport(
+  reportType: 'PROJECT' | 'INVOICE' | 'PAYMENT' | 'OUTSTANDING' | 'MILESTONE',
+  filters: ReportFilters,
+  format: 'csv' | 'excel' | 'pdf',
+  selectedColumns?: string[] | null,
+  filenameHint?: string
+) {
+  const res = await fetch(`${BASE}/reports/${reportType}/export`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      filters,
+      format,
+      selected_columns: selectedColumns && selectedColumns.length > 0 ? selectedColumns : null,
+    }),
+  })
+  if (!res.ok) {
+    await throwApiError(res)
+  }
+  const blob = await res.blob()
+  if (blob.size === 0) {
+    throw new ApiError(500, 'The server returned an empty file.')
+  }
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  const extension = format === 'excel' ? 'xlsx' : format
+  const base = filenameHint || reportType.toLowerCase()
+  a.download = `${base}.${extension}`
   a.click()
   setTimeout(() => URL.revokeObjectURL(url), 60_000)
 }

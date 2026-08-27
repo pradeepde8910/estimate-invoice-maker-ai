@@ -22,6 +22,7 @@ import ProjectDetail from './pages/ProjectDetail'
 import NewInvoiceV2 from './pages/NewInvoiceV2'
 import InvoiceViewV2 from './pages/InvoiceViewV2'
 import NewStandaloneInvoice from './pages/NewStandaloneInvoice'
+import ExportCenter from './pages/ExportCenter'
 
 import { BillingClassifications } from './pages/admin/BillingClassifications'
 import ResourceCatalog from './pages/admin/ResourceCatalog'
@@ -53,6 +54,7 @@ const router = createBrowserRouter(
           <Route path="projects/:projectId/invoice/:invoiceId" element={<InvoiceViewV2 />} />
           <Route path="standalone/new" element={<NewStandaloneInvoice />} />
           <Route path="standalone/:invoiceId" element={<InvoiceViewV2 />} />
+          <Route path="export" element={<ExportCenter />} />
           <Route path="organization" element={<OrganizationSettings />} />
           <Route path="classifications" element={<BillingClassifications />} />
           <Route path="resource-catalog" element={<ResourceCatalog />} />

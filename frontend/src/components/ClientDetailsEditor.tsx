@@ -4,7 +4,14 @@ import Card from './Card'
 import { EMAIL_RE, PHONE_RE, GSTIN_RE, formatGSTIN, formatPhone, uiFormatPhone } from '../utils/validation'
 
 export default function ClientDetailsEditor({ baseName, clientInfo, onSaved }: { baseName: string, clientInfo: any, onSaved: (newInfo: any) => void }) {
-  const [isEditing, setIsEditing] = useState(false)
+  // If the AI pipeline found no usable identity at all (no company name AND
+  // no contact person — the two things that actually let you confirm), open
+  // straight into the edit form instead of a read-only view that's just a
+  // wall of "Not specified" labels next to a Confirm button that can't be
+  // clicked yet. That view was technically correct but left the user to
+  // discover on their own that "Edit Details" is the only way forward.
+  const hasAnyIdentity = Boolean(clientInfo?.company_name?.trim() || clientInfo?.contact_person?.trim())
+  const [isEditing, setIsEditing] = useState(() => !hasAnyIdentity)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
@@ -106,11 +113,23 @@ export default function ClientDetailsEditor({ baseName, clientInfo, onSaved }: {
         <div className="grid grid-cols-2 md:grid-cols-3 gap-6 mb-6">
           <div>
             <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Company / Organization</div>
-            <div className="text-sm font-medium text-slate-900">{clientInfo?.company_name || <span className="text-slate-400 italic">Not specified</span>}</div>
+            <div className="text-sm font-medium text-slate-900">
+              {clientInfo?.company_name || (
+                !clientInfo?.contact_person
+                  ? <span className="inline-flex items-center gap-1 text-amber-600 text-xs font-semibold bg-amber-50 px-2 py-0.5 rounded">⚠ Required — add this or Contact Person</span>
+                  : <span className="text-slate-400 italic">Not specified</span>
+              )}
+            </div>
           </div>
           <div>
             <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Contact Person</div>
-            <div className="text-sm font-medium text-slate-900">{clientInfo?.contact_person || <span className="text-slate-400 italic">Not specified</span>}</div>
+            <div className="text-sm font-medium text-slate-900">
+              {clientInfo?.contact_person || (
+                !clientInfo?.company_name
+                  ? <span className="inline-flex items-center gap-1 text-amber-600 text-xs font-semibold bg-amber-50 px-2 py-0.5 rounded">⚠ Required — add this or Company Name</span>
+                  : <span className="text-slate-400 italic">Not specified</span>
+              )}
+            </div>
           </div>
           <div>
             <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Email Address</div>
@@ -135,10 +154,11 @@ export default function ClientDetailsEditor({ baseName, clientInfo, onSaved }: {
             Edit Details
           </button>
           {!isConfirmed && (
-            <button 
+            <button
               onClick={() => handleSave(true)}
               disabled={saving || !hasMinRequired}
-              className="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 text-sm font-semibold rounded-lg transition-colors disabled:opacity-50"
+              title={!hasMinRequired ? 'Add a Company Name or Contact Person before confirming' : undefined}
+              className="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 text-sm font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {saving ? 'Confirming...' : 'Confirm Identity'}
             </button>
@@ -151,7 +171,18 @@ export default function ClientDetailsEditor({ baseName, clientInfo, onSaved }: {
   return (
     <Card className="mb-6 p-6 border-blue-200 shadow-[0_0_15px_rgba(59,130,246,0.1)]">
       <h3 className="text-lg font-semibold tracking-tight text-slate-900 mb-4">Edit Client Details</h3>
-      
+
+      {!hasAnyIdentity && (
+        <div className="mb-4 p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800 flex items-start gap-2.5">
+          <span className="text-base mt-0.5">ℹ️</span>
+          <span>
+            The uploaded document didn't mention a company name or contact person, so there's nothing to
+            pre-fill. Add at least one of the two below, then confirm to proceed — or pick a client you've
+            billed before from the list underneath.
+          </span>
+        </div>
+      )}
+
       {error && <div className="p-3 bg-red-50 text-red-700 text-sm rounded-lg mb-4">{error}</div>}
 
       {existingClients.length > 0 && (

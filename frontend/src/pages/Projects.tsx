@@ -99,7 +99,7 @@ export default function Projects() {
   }
 
   return (
-    <div className="flex-1 bg-slate-50 min-h-screen">
+    <div className="flex-1 bg-transparent min-h-screen">
       <Topbar showBack={false} title="Projects & Invoices" subtitle="Manage all projects and their financial summaries." />
       <div className="p-8 space-y-6">
         <div className="flex items-center justify-between flex-wrap gap-3">

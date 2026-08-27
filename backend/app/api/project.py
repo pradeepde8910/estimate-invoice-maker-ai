@@ -154,47 +154,13 @@ def convert_estimation_to_project(
         db.add(project)
         db.flush()
         
-        # 3. Create default Billing Config in V2 — this conversion path always
-        # builds ProjectMilestone rows from the estimation's AI billing units
-        # below, so "MILESTONE" is the correct billing type here, not an
-        # arbitrary "whichever BillingType row happens to exist" pick.
-        from app.models.master import BillingType
-        b_type = db.query(BillingType).filter_by(code="MILESTONE").first()
-        if not b_type:
-            b_type = BillingType(code="MILESTONE", description="Milestone Billing")
-            db.add(b_type)
-            db.flush()
-        if b_type:
-            # Infer delivery unit label from AI output strings
-            delivery_unit_label = "Milestone"
-            if est.raw_pipeline_json:
-                cost_data = est.raw_pipeline_json.get("cost_estimation", est.raw_pipeline_json)
-                unit_estimates = cost_data.get("unit_estimates", [])
-                if not unit_estimates:
-                    unit_estimates = cost_data.get("phase_estimates", [])
-                
-                b_units = [u for u in unit_estimates if u.get("billing", {}).get("is_billing_unit") is True or u.get("relevance", {}).get("billing") is True]
-                if b_units:
-                    first_label = b_units[0].get("label", "Milestone").strip()
-                    first_word = first_label.split(" ")[0]
-                    if len(first_word) > 2:
-                        all_share = all(u.get("label", "").strip().split(" ")[0].lower() == first_word.lower() for u in b_units)
-                        if all_share:
-                            delivery_unit_label = first_word.capitalize()
-
-            bc = ProjectBillingConfig(
-                project_id=project.id,
-                billing_type_id=b_type.id,
-                gst_percentage=18.00,
-                tds_applicable="NO",
-                delivery_unit_label=delivery_unit_label
-            )
-            db.add(bc)
-            
-        # 3.5 Create Project Milestones from AI Billing Units
+        # 3. Create Project Milestones and Commercial Components from the AI
+        # billing units FIRST — the billing type/label decided below reflects
+        # whatever structure this estimation actually produced, rather than
+        # assuming every converted project is milestone-billed.
         import json
         from app.models.project_component import ProjectCommercialComponent
-        from app.models.master import BillingClassification
+        from app.models.master import BillingClassification, BillingType
         from app.services.billing_classification_service import match_billing_classifications
         from app.services.invoice_service import MIN_AUTO_MATCH_SCORE
 
@@ -206,10 +172,21 @@ def convert_estimation_to_project(
                 return matches[0]["id"], "AUTO_MATCHED"
             return None, "UNCLASSIFIED"
 
+        def _get_or_create_billing_type(code: str, description: str) -> "BillingType":
+            b_type = db.query(BillingType).filter_by(code=code).first()
+            if not b_type:
+                b_type = BillingType(code=code, description=description)
+                db.add(b_type)
+                db.flush()
+            return b_type
+
+        billing_units: list = []
+        has_components = False
+
         if est.raw_pipeline_json:
             result_data = est.raw_pipeline_json
             cost_data = result_data.get("cost_estimation", result_data)
-            
+
             unit_estimates = cost_data.get("unit_estimates", [])
             if not unit_estimates:
                 unit_estimates = cost_data.get("phase_estimates", [])
@@ -217,27 +194,26 @@ def convert_estimation_to_project(
             contingency_amt = Decimal(str(cost_data.get("contingency_amount", 0)))
             infra_monthly = Decimal(str(cost_data.get("infrastructure_cost_monthly", 0)))
             license_monthly = Decimal(str(cost_data.get("third_party_licenses_monthly", 0)))
-            
-            billing_units = []
+
             for unit in unit_estimates:
                 is_billing = unit.get("billing", {}).get("is_billing_unit")
                 if is_billing is None:
                     is_billing = unit.get("relevance", {}).get("billing")
                 if is_billing is True:
                     billing_units.append(unit)
-            
+
             if billing_units:
                 total_billing_amount = Decimal('0.00')
                 for unit in billing_units:
                     cost = Decimal(str(unit.get("estimate", {}).get("cost", 0)))
                     total_billing_amount += cost
-                    
+
                 if total_billing_amount > total_dev_cost + Decimal('1.00'):
                     raise HTTPException(
-                        status_code=400, 
+                        status_code=400,
                         detail=f"Safety check failed: Total billing milestones amount (₹{total_billing_amount:,.2f}) exceeds total project development cost (₹{total_dev_cost:,.2f})."
                     )
-                    
+
                 for unit in billing_units:
                     cost = Decimal(str(unit.get("estimate", {}).get("cost", 0)))
                     name = unit.get("label", "Untitled Milestone")
@@ -251,9 +227,12 @@ def convert_estimation_to_project(
                         billing_classification_id=bc_id,
                         classification_source=c_source
                     ))
-            
-            # 3.6 Create Commercial Components for non-milestone costs
+
+            # Commercial Components for non-milestone costs — these can exist
+            # standalone (a project billed purely on infra/license/contingency,
+            # with no milestone breakdown at all) or alongside milestones.
             if contingency_amt > 0:
+                has_components = True
                 name = "Project Contingency"
                 bc_id, c_source = _get_classification(name)
                 db.add(ProjectCommercialComponent(
@@ -266,8 +245,9 @@ def convert_estimation_to_project(
                     billing_classification_id=bc_id,
                     classification_source=c_source
                 ))
-            
+
             if infra_monthly > 0:
+                has_components = True
                 infra_cost = infra_monthly * 6  # standard 6mo estimation
                 name = "Infrastructure (6 months)"
                 bc_id, c_source = _get_classification(name)
@@ -281,8 +261,9 @@ def convert_estimation_to_project(
                     billing_classification_id=bc_id,
                     classification_source=c_source
                 ))
-                
+
             if license_monthly > 0:
+                has_components = True
                 lic_cost = license_monthly * 6
                 name = "Licenses & Services (6 months)"
                 bc_id, c_source = _get_classification(name)
@@ -296,7 +277,28 @@ def convert_estimation_to_project(
                     billing_classification_id=bc_id,
                     classification_source=c_source
                 ))
-                    
+
+        # 3.5 Decide the project's billing type from what was actually built
+        # above, instead of hardcoding MILESTONE regardless of structure —
+        # see app/services/billing_type_service.py (unit-tested) for the
+        # decision rationale.
+        from app.services.billing_type_service import (
+            BILLING_TYPE_DESCRIPTIONS, decide_billing_type, infer_delivery_unit_label,
+        )
+
+        billing_type_code, default_label = decide_billing_type(billing_units, has_components)
+        b_type = _get_or_create_billing_type(billing_type_code, BILLING_TYPE_DESCRIPTIONS[billing_type_code])
+        delivery_unit_label = infer_delivery_unit_label(billing_type_code, billing_units, default_label)
+
+        bc = ProjectBillingConfig(
+            project_id=project.id,
+            billing_type_id=b_type.id,
+            gst_percentage=18.00,
+            tds_applicable="NO",
+            delivery_unit_label=delivery_unit_label
+        )
+        db.add(bc)
+
         # 4. Mark V1 Estimation as Converted
         est.status = "Converted"
         est.converted_project_id = project.id

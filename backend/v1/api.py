@@ -41,6 +41,7 @@ from pydantic import BaseModel, Field, field_validator
 import config
 from agents.graph import build_pipeline
 from invoice_builder import build_invoice
+from estimation_excel_exporter import build_full_workbook, build_timeline_workbook
 from app.utils.letterhead import apply_letterhead
 from app.utils.pdf_builder import markdown_to_pdf, html_to_pdf
 from app.utils import organization
@@ -320,6 +321,23 @@ def _sanitize_filename(name: str) -> str:
     return safe[:50] or "project"
 
 
+def _safe_output_path(filename: str) -> Path:
+    """Resolves filename against OUTPUT_DIR and rejects any path-traversal
+    escape (e.g. a `base_name` path parameter containing "../../etc/passwd")
+    before the caller ever opens it. These filesystem fallbacks are keyed by
+    a client-supplied path parameter (base_name) that isn't sanitized like
+    the slugs _sanitize_filename produces — the DB-backed lookups that
+    precede each fallback are safe (parameterized queries), but the raw
+    f-string path join after a DB miss wasn't."""
+    out_dir = Path(config.OUTPUT_DIR).resolve()
+    candidate = (out_dir / filename).resolve()
+    try:
+        candidate.relative_to(out_dir)
+    except ValueError:
+        raise HTTPException(400, "Invalid document identifier")
+    return candidate
+
+
 def _summarize(state: dict) -> dict:
     """Trim the full pipeline state down to what the dashboard needs."""
     analysis = state.get("project_analysis") or {}
@@ -544,6 +562,34 @@ async def get_job(job_id: str):
     job = JOBS.get(job_id)
     if not job:
         raise HTTPException(404, "Job not found")
+
+    result = job.get("result")
+    # `result` is a snapshot captured once, when the pipeline finished —
+    # it never changes afterward, so a client identity confirmed/edited via
+    # ClientDetailsEditor (which writes straight to the DB) would otherwise
+    # never be reflected here even after re-fetching the job. Overlay the
+    # live DB record on every read instead, the same way get_document_data
+    # does for the equivalent /documents/{base_name}/data endpoint.
+    if result and job.get("base_name"):
+        db = SessionLocal()
+        try:
+            est = db.query(Estimation).filter(Estimation.id == job["base_name"]).first()
+            if est and est.client:
+                result = dict(result)
+                result["client_info"] = {
+                    "company_name": est.client.company_name,
+                    "contact_person": est.client.contact_person,
+                    "email": est.client.email,
+                    "phone": est.client.phone,
+                    "billing_address": est.client.billing_address,
+                    "gstin": est.client.gstin,
+                    "status": est.client.status,
+                }
+        except Exception as e:
+            print(f"DB get_job client_info refresh failed: {e}")
+        finally:
+            db.close()
+
     return {
         "id": job["id"],
         "status": job["status"],
@@ -552,7 +598,7 @@ async def get_job(job_id: str):
         "log": job["log"][-20:],
         "error": job.get("error"),
         "source_name": job.get("source_name"),
-        "result": job.get("result"),
+        "result": result,
         "base_name": job.get("base_name"),
         "created_at": job.get("created_at"),
     }
@@ -767,15 +813,73 @@ async def get_document_data(base_name: str):
         db.close()
 
     # Legacy file fallback
-    out_dir = Path(config.OUTPUT_DIR)
-    path = out_dir / f"{base_name}_data.json"
+    path = _safe_output_path(f"{base_name}_data.json")
     if not path.exists():
         raise HTTPException(404, "Document not found")
     data = json.loads(path.read_text(encoding="utf-8"))
-    data["_has_quotation"] = (out_dir / f"{base_name}_quotation.md").exists()
-    data["_has_brd"] = (out_dir / f"{base_name}_brd.md").exists()
-    data["_has_srs"] = (out_dir / f"{base_name}_srs.md").exists()
+    data["_has_quotation"] = _safe_output_path(f"{base_name}_quotation.md").exists()
+    data["_has_brd"] = _safe_output_path(f"{base_name}_brd.md").exists()
+    data["_has_srs"] = _safe_output_path(f"{base_name}_srs.md").exists()
     return data
+
+
+def _load_estimation_export_data(base_name: str, db) -> tuple[dict, Estimation]:
+    """
+    Shared lookup for both Excel export endpoints below. Only supports
+    DB-backed estimations (unlike get_document_data, no legacy-file
+    fallback) — the Excel export is a new feature with no pre-existing
+    file-based estimations that would need it.
+    """
+    est = db.query(Estimation).filter(Estimation.id == base_name).first()
+    if not est or not est.raw_pipeline_json:
+        raise HTTPException(404, "Estimation not found or has no pipeline data")
+    data = dict(est.raw_pipeline_json)
+    data["status"] = est.status
+    data["version"] = est.version
+    return data, est
+
+
+@app.get("/api/documents/{base_name}/excel")
+def download_estimation_excel(base_name: str):
+    """Complete multi-sheet estimation workbook — overview, timeline (with
+    Gantt chart), cost breakdowns, requirements, task-level detail, team,
+    infrastructure/license costs, and risks/assumptions, each with charts
+    where there's something worth visualizing.
+
+    Registered here (before the generic /{base_name}/{doc_type} route just
+    below) so FastAPI's path matching — first route registered whose
+    pattern matches wins — doesn't let that wildcard swallow "/excel" as a
+    doc_type value before this specific route ever gets a chance."""
+    db = SessionLocal()
+    try:
+        data, est = _load_estimation_export_data(base_name, db)
+        workbook_bytes = build_full_workbook(data, est, est.client)
+    finally:
+        db.close()
+
+    return Response(
+        content=workbook_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{base_name}_estimation.xlsx"'},
+    )
+
+
+@app.get("/api/documents/{base_name}/timeline/excel")
+def download_estimation_timeline_excel(base_name: str):
+    """Standalone timeline-only workbook (phases + Gantt chart), for when
+    just the schedule is needed rather than the full estimation."""
+    db = SessionLocal()
+    try:
+        data, est = _load_estimation_export_data(base_name, db)
+        workbook_bytes = build_timeline_workbook(data, est)
+    finally:
+        db.close()
+
+    return Response(
+        content=workbook_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{base_name}_timeline.xlsx"'},
+    )
 
 
 @app.get("/api/documents/{base_name}/{doc_type}", response_class=PlainTextResponse)
@@ -801,7 +905,7 @@ async def get_document_file(base_name: str, doc_type: str):
 
     # Fallback to local files
     ext = "html" if doc_type == "invoice" else "md"
-    path = Path(config.OUTPUT_DIR) / f"{base_name}_{doc_type}.{ext}"
+    path = _safe_output_path(f"{base_name}_{doc_type}.{ext}")
     if not path.exists():
         raise HTTPException(404, "Document not found")
     media_type = "text/html" if doc_type == "invoice" else "text/plain"
@@ -1408,7 +1512,7 @@ def download_document_pdf(base_name: str, doc_type: str):
     if not content:
         # Fallback to local files
         ext = "html" if doc_type == "invoice" else "md"
-        path = Path(config.OUTPUT_DIR) / f"{base_name}_{doc_type}.{ext}"
+        path = _safe_output_path(f"{base_name}_{doc_type}.{ext}")
         if not path.exists():
             raise HTTPException(404, "Document not found")
         content = path.read_text(encoding="utf-8")

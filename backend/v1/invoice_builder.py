@@ -68,13 +68,13 @@ body { background-color: #F1F5F9; color: #334155; padding: 40px 12px; font-size:
 .totals-table { width: 100%; border-collapse: collapse; }
 .totals-table td { border: none; padding: 6px 0; font-size: 12px; color: #64748B; }
 .totals-table tr.grand-total td { border-top: 2px solid #0F172A; padding-top: 10px; font-size: 16px; font-weight: 700; color: #0F172A; }
-.footer-section { margin-top: 40px; padding-top: 20px; border-top: 1px solid #E2E8F0; }
+.footer-section { margin-top: 20px; padding-top: 10px; border-top: 1px solid #E2E8F0; }
 .signature-box { text-align: center; min-width: 220px; }
 .signature-space { min-height: 50px; white-space: nowrap; margin-bottom: 4px; }
 .signature-space img { max-height: 48px; display: inline-block; vertical-align: middle; margin: 0 4px; }
 .signature-title { font-size: 11px; font-weight: 600; color: #64748B; border-top: 1px solid #E2E8F0; padding-top: 4px; }
 .terms-list { font-size: 10px; color: #64748B; line-height: 1.6; padding-left: 14px; }
-.company-legal-footer { margin-top: 24px; text-align: center; font-size: 10px; color: #64748B; background: #F8FAFC; padding: 8px; border-radius: 4px; }
+.company-legal-footer { margin-top: 10px; text-align: center; font-size: 10px; color: #64748B; background: #F8FAFC; padding: 4px 8px; border-radius: 4px; }
 @media print { body { background: #fff; padding: 0; } .invoice-card { box-shadow: none; padding: 0; } }
 """
 

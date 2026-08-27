@@ -45,7 +45,7 @@ export default function InvoiceDashboard() {
   const invoicedRecent = data?.recent_invoices ?? []
 
   return (
-    <div className="flex-1 bg-slate-50 min-h-screen">
+    <div className="flex-1 bg-transparent min-h-screen">
       <Topbar showBack title="Invoice Dashboard" subtitle="Revenue and payment status across every invoice." />
       <div className="p-8 space-y-6">
         <div className="flex justify-end">

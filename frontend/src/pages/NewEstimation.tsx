@@ -51,7 +51,7 @@ function estimateRemaining(job: Job): string | null {
 }
 
 export default function NewEstimation() {
-  const { job, jobId, setJobId } = useJob()
+  const { job, jobId, setJobId, refreshJob } = useJob()
   const [showForm, setShowForm] = useState(!jobId)
   const [cancelling, setCancelling] = useState(false)
   const navigate = useNavigate()
@@ -83,7 +83,7 @@ export default function NewEstimation() {
   }
 
   return (
-    <div className="flex-1 bg-slate-50 min-h-screen">
+    <div className="flex-1 bg-transparent min-h-screen">
       <Topbar showBack title="New Estimation" subtitle="Upload a requirement document to get an AI-generated cost & timeline estimate." />
       <div className="p-8 space-y-6">
         {!showForm && (
@@ -176,13 +176,18 @@ export default function NewEstimation() {
         {!showForm && job?.status === 'complete' && job.result && (
           <>
             {!job.result.converted_project_id && (
-              <ClientDetailsEditor 
-                baseName={job.base_name || ''} 
-                clientInfo={job.result.client_info} 
-                onSaved={(newInfo) => {
-                  // Not strictly needed since a reload or navigating to the project will fetch the updated DB record,
-                  // but we could theoretically update local state here if job context exposed a setter.
-                }} 
+              <ClientDetailsEditor
+                baseName={job.base_name || ''}
+                clientInfo={job.result.client_info}
+                onSaved={() => {
+                  // `job` comes from JobContext and stops polling once the
+                  // job reaches 'complete' — without this, the just-saved
+                  // client identity would never reach this screen, and
+                  // ClientDetailsEditor's read-only view would flip back to
+                  // showing the pre-save (empty) data right after a
+                  // successful save, looking like the save silently failed.
+                  refreshJob()
+                }}
               />
             )}
             <EstimationResult result={job.result} docSource="job" docId={job.id} baseName={job.base_name} />

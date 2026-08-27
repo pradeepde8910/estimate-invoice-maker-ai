@@ -7,7 +7,21 @@ html, body, #root {
 }
 
 body {
-  @apply bg-[#f6faf7] text-slate-800 font-sans;
+  @apply text-slate-800 font-sans;
+  /* App-wide minimalist background — the mountains-in-cloud illustration
+     shows through the negative space around white Cards, the dashboard,
+     and any page that doesn't paint its own opaque background over it
+     (see the `bg-transparent` page-shell convention in src/pages/*.tsx).
+     The white gradient wash keeps it subtle rather than competing with
+     dense data tables, and background-color is the fallback if the image
+     is slow to load or fails. Fixed attachment so it doesn't scroll with
+     tall pages — a static backdrop, not a banner at the top. */
+  background-color: #f6faf7;
+  background-image: linear-gradient(rgba(246, 250, 247, 0.88), rgba(246, 250, 247, 0.88)), url('/bg-app.webp');
+  background-size: cover;
+  background-position: center top;
+  background-attachment: fixed;
+  background-repeat: no-repeat;
   /* Crisp rendering for the custom variable font (Google Sans Flex) — without
      this, WebKit/Blink on macOS render it slightly heavier/fuzzier than the
      system-font fallback it replaces, undercutting the whole point of
@@ -37,4 +51,37 @@ body {
 }
 ::-webkit-scrollbar-track {
   background: transparent;
+}
+
+/* Strict A4 invoice paper — same dimensions on screen (as a print preview)
+   and when actually printed, so what the user reviews on screen is what
+   comes out of the printer instead of the browser scaling an arbitrary-width
+   card to fit the page. An invoice can render as several of these divs
+   stacked (see InvoiceViewV2's pagination) — each one is exactly one A4
+   sheet, on screen and on paper. */
+.invoice-a4-page {
+  width: 210mm;
+  min-height: 297mm;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 0;
+  }
+  /* The background illustration must never show up behind a printed
+     invoice — it's a screen-only decorative touch, not part of the
+     document. */
+  body {
+    background-image: none !important;
+  }
+  .invoice-a4-page {
+    margin: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    break-after: page;
+  }
+  .invoice-a4-page:last-of-type {
+    break-after: auto;
+  }
 }

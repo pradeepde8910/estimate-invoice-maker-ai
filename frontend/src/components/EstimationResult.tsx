@@ -4,6 +4,7 @@ import Card from './Card'
 import HeroStat from './HeroStat'
 import StatCard from './StatCard'
 import DonutChart from './DonutChart'
+import { downloadEstimationExcel, downloadEstimationTimelineExcel } from '../api/client'
 import type { JobResult, Phase, RequirementEstimate, TaskEstimate } from '../api/types'
 
 export const inr = (n: number) => '₹' + Math.round(n || 0).toLocaleString('en-IN')
@@ -179,7 +180,23 @@ function QuotationHealthPanel({ validation }: { validation: JobResult['quotation
 }
 
 // ── Project timeline / phases ─────────────────────────────────────────────────
-function ProjectTimeline({ phases, timelineWeeks }: { phases: Phase[]; timelineWeeks: number }) {
+function ProjectTimeline({ phases, timelineWeeks, baseName }: { phases: Phase[]; timelineWeeks: number; baseName?: string | null }) {
+  const [downloading, setDownloading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function handleDownloadTimeline() {
+    if (!baseName) return
+    setDownloading(true)
+    setError(null)
+    try {
+      await downloadEstimationTimelineExcel(baseName)
+    } catch (e: any) {
+      setError(e.message || 'Failed to download timeline')
+    } finally {
+      setDownloading(false)
+    }
+  }
+
   let elapsed = 0;
   const scheduleUnits = phases.map(phase => {
     const startWeek = elapsed;
@@ -204,10 +221,21 @@ function ProjectTimeline({ phases, timelineWeeks }: { phases: Phase[]; timelineW
           <div>
             <p className="text-sm text-slate-500">Estimated delivery · {scheduleUnits.length} schedule units</p>
           </div>
-          <div className="text-right">
+          <div className="text-right flex items-center gap-3">
             <span className="text-sm font-bold text-slate-800">{timelineWeeks} Weeks Total</span>
+            {baseName && (
+              <button
+                onClick={handleDownloadTimeline}
+                disabled={downloading}
+                title="Download this timeline as an Excel workbook with a Gantt chart"
+                className="text-xs font-medium bg-slate-50 hover:bg-indigo-50 hover:text-indigo-700 text-slate-600 px-3 py-1.5 rounded-full border border-slate-100/50 hover:border-indigo-100 transition-all disabled:opacity-50"
+              >
+                {downloading ? 'Preparing…' : '⬇ Download Timeline (Excel)'}
+              </button>
+            )}
           </div>
         </div>
+        {error && <div className="text-xs text-coral-600 mb-3">{error}</div>}
 
         <div className="relative overflow-x-auto pb-6">
           <div className="min-w-[600px] relative">
@@ -317,6 +345,8 @@ export default function EstimationResult({
   baseName?: string | null
 }) {
   const navigate = useNavigate()
+  const [downloadingExcel, setDownloadingExcel] = useState(false)
+  const [excelError, setExcelError] = useState<string | null>(null)
   const resourceCount = result.role_estimates?.length ?? 0
   const docPath = (type: string) =>
     baseName
@@ -329,6 +359,19 @@ export default function EstimationResult({
   const allReqs = (result.unit_estimates ?? []).flatMap(u => u.requirement_estimates ?? [])
   const inScopeCount = allReqs.filter(r => r.scope_status !== 'OUT_OF_SCOPE').length
   const outScopeCount = allReqs.filter(r => r.scope_status === 'OUT_OF_SCOPE').length
+
+  async function handleDownloadExcel() {
+    if (!baseName) return
+    setDownloadingExcel(true)
+    setExcelError(null)
+    try {
+      await downloadEstimationExcel(baseName)
+    } catch (e: any) {
+      setExcelError(e.message || 'Failed to download workbook')
+    } finally {
+      setDownloadingExcel(false)
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -383,6 +426,19 @@ export default function EstimationResult({
               <DocAction label="SRS" ready={result.has_srs} onClick={() => navigate(docPath('srs'))} />
               <DocAction label="Quotation" ready={result.has_quotation} onClick={() => navigate(docPath('quotation'))} />
             </div>
+            {baseName && (
+              <div className="mt-3 pt-3 border-t border-slate-100">
+                <button
+                  onClick={handleDownloadExcel}
+                  disabled={downloadingExcel}
+                  title="Complete estimation workbook — overview, timeline, cost breakdowns, requirements, task-level detail, team, infrastructure/license costs, risks & assumptions, with charts"
+                  className="w-full px-3 py-3 rounded-2xl text-sm font-medium bg-brand-50 text-brand-700 hover:bg-brand-100 transition-colors disabled:opacity-50"
+                >
+                  {downloadingExcel ? 'Preparing…' : '⬇ Download Complete Estimation (Excel)'}
+                </button>
+                {excelError && <p className="text-xs text-coral-600 mt-2">{excelError}</p>}
+              </div>
+            )}
           </Card>
 
           {/* Scope summary */}
@@ -503,7 +559,7 @@ export default function EstimationResult({
 
       {/* ── Project timeline / phases ── */}
       {result.phases && result.phases.length > 0 && (
-        <ProjectTimeline phases={result.phases} timelineWeeks={result.timeline_weeks} />
+        <ProjectTimeline phases={result.phases} timelineWeeks={result.timeline_weeks} baseName={baseName} />
       )}
     </div>
   )

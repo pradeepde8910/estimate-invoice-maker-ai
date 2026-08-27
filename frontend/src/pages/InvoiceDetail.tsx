@@ -121,7 +121,7 @@ export default function InvoiceDetail() {
   const isDraft = (invoiceMeta?.status ?? 'Draft') === 'Draft'
 
   return (
-    <div className="flex-1 bg-slate-50 min-h-screen">
+    <div className="flex-1 bg-transparent min-h-screen">
       <Topbar showBack title="Invoice" subtitle={`${clientName} · ${projectName}`} />
       <div className="p-8 max-w-4xl space-y-6">
         {error && <div className="text-sm text-coral-600 bg-coral-50 rounded-2xl px-4 py-3">{error}</div>}

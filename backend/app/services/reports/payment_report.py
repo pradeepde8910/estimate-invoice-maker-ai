@@ -29,9 +29,14 @@ class PaymentReport(BaseReport):
             query = query.filter(Invoice.project_id == filters.project_id)
         if filters.statuses:
             query = query.filter(Payment.status.in_(filters.statuses))
-        if filters.billing_type:
-            query = query.filter(Invoice.billing_type == filters.billing_type)
-            
+        # billing_type isn't a real column on Invoice (it's a computed
+        # @property backed by ProjectBillingConfig via the project), so unlike
+        # client_id/project_id/statuses above there's no plain column to
+        # filter on here — silently ignored, matching how apply_common_filters
+        # treats non-column billing_type elsewhere, rather than referencing a
+        # nonexistent attribute and raising.
+
+
         query = query.order_by(Payment.received_at.desc().nullslast())
         
         results = query.all()
@@ -46,7 +51,7 @@ class PaymentReport(BaseReport):
         
         for payment, inv in results:
             rows.append({
-                "Payment Reference": payment.reference_number or payment.id[:8],
+                "Payment Reference": payment.payment_reference or payment.id[:8],
                 "Invoice Number": inv.invoice_number or "DRAFT",
                 "Project Name": inv.project_name or "N/A",
                 "Client Name": inv.client_name or "N/A",

@@ -100,7 +100,7 @@ export default function ProjectDetail() {
   if (!summary) return <div className="p-8 text-center text-red-500">Failed to load project.</div>
 
   return (
-    <div className="flex-1 bg-slate-50 min-h-screen">
+    <div className="flex-1 bg-transparent min-h-screen">
       <Topbar showBack title={summary.project_name} subtitle={`Project No: ${summary.project_number}`} />
       <div className="p-8 space-y-6 max-w-6xl mx-auto">
         

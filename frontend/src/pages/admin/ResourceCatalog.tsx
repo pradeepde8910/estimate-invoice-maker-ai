@@ -109,7 +109,7 @@ export default function ResourceCatalog() {
   }
 
   return (
-    <div className="flex-1 bg-slate-50 dark:bg-slate-950 min-h-screen">
+    <div className="flex-1 bg-transparent dark:bg-slate-950 min-h-screen">
       <Topbar
         showBack
         title="Resource & Capability Catalog"

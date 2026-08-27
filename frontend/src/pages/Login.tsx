@@ -45,10 +45,14 @@ export default function Login() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 font-sans relative overflow-hidden">
-      {/* Background blobs for depth and premium look */}
-      <div className="absolute top-[-20%] left-[-10%] w-[50vw] h-[50vw] rounded-full bg-gradient-to-br from-pixous-blue/10 to-transparent blur-[100px] pointer-events-none" />
-      <div className="absolute bottom-[-20%] right-[-10%] w-[45vw] h-[45vw] rounded-full bg-gradient-to-tr from-pixous-teal/10 to-transparent blur-[90px] pointer-events-none" />
+    <div
+      className="flex min-h-screen items-center justify-center bg-slate-50 font-sans relative overflow-hidden"
+      style={{
+        backgroundImage: "linear-gradient(rgba(246,250,247,0.55), rgba(246,250,247,0.72)), url('/bg-login.webp')",
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+      }}
+    >
 
       <div className="relative w-full max-w-md px-6 py-12 z-10">
         {/* Logo and Brand Title */}

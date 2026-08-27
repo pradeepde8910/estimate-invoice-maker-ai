@@ -24,6 +24,7 @@ const ESTIMATION_NAV: NavItem[] = [
 
 const INVOICE_NAV: NavItem[] = [
   { to: '/invoice', label: 'Projects & Invoices', icon: ChartIcon, end: true },
+  { to: '/invoice/export', label: 'Export Center', icon: DownloadIcon },
   { to: '/invoice/classifications', label: 'Billing Classifications', icon: TagIcon },
   { to: '/invoice/resource-catalog', label: 'Resource & Capability Catalog', icon: LayersIcon },
   { to: '/invoice/organization', label: 'Organization Settings', icon: BuildingIcon },
@@ -38,7 +39,7 @@ export default function WorkspaceSidebar({ workspace }: { workspace: 'estimation
   const jobIsActive = job?.status === 'queued' || job?.status === 'running'
 
   return (
-    <aside className="w-64 shrink-0 bg-white flex flex-col h-screen sticky top-0">
+    <aside className="print:hidden w-64 shrink-0 bg-white flex flex-col h-screen sticky top-0">
       <div className="flex flex-col gap-1 px-6 h-20 justify-center">
         {logoUrl
           ? <img src={logoUrl} alt="Logo" className="h-10 w-auto object-left object-contain" />
@@ -137,6 +138,14 @@ function ListIcon(props: React.SVGProps<SVGSVGElement>) {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} {...props}>
       <path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z" strokeLinejoin="round" />
       <path d="M9 8h6M9 12h6M9 16h3" strokeLinecap="round" />
+    </svg>
+  )
+}
+function DownloadIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} {...props}>
+      <path d="M12 4v11m0 0-4-4m4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M5 18v1a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-1" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
 }
