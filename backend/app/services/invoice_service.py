@@ -1,3 +1,4 @@
+import json
 import re
 from datetime import datetime, timedelta
 from decimal import Decimal
@@ -338,10 +339,12 @@ def _finalize_and_save_invoice(
         session.add(InvoiceTDS(invoice_id=invoice.id, tds_percentage=tds_rate, tds_amount=tds_amount))
 
     audit = AuditLog(
-        entity_type="INVOICE",
-        entity_id=invoice.id,
-        action="CREATED",
-        details=f"Invoice created with number {invoice.invoice_number} for {financials['total_payable']}"
+        action="INVOICE_CREATED",
+        details=json.dumps({
+            "entity_type": "INVOICE",
+            "entity_id": invoice.id,
+            "message": f"Invoice created with number {invoice.invoice_number} for {financials['total_payable']}",
+        }),
     )
     session.add(audit)
 
@@ -515,10 +518,12 @@ def transition_invoice_status(session: Session, invoice_id: str, new_status: str
             
             # Log cancellation
             audit = AuditLog(
-                entity_type="INVOICE",
-                entity_id=invoice.id,
-                action="CANCELLED",
-                details=f"Invoice {invoice.invoice_number} cancelled."
+                action="INVOICE_CANCELLED",
+                details=json.dumps({
+                    "entity_type": "INVOICE",
+                    "entity_id": invoice.id,
+                    "message": f"Invoice {invoice.invoice_number} cancelled.",
+                }),
             )
             session.add(audit)
 

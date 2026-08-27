@@ -226,7 +226,7 @@ def validate_quotation(analysis: dict, estimation: dict) -> QuotationValidationR
     # Multi-level similarity: normalized title + keyword intersection.
     # Flags WARNING when two requirements in different units share substantial overlap,
     # but does NOT auto-delete either — it surfaces them for human review.
-    def _normalize_title(title: str) -> str:
+    def _normalize_title(title: str) -> set:
         """Lowercase, strip punctuation, remove stop words."""
         import re as _re
         stop = {"a", "an", "the", "and", "or", "of", "for", "to", "in",
@@ -235,23 +235,28 @@ def validate_quotation(analysis: dict, estimation: dict) -> QuotationValidationR
         words = _re.sub(r"[^a-z0-9\s]", "", title.lower()).split()
         return set(w for w in words if w not in stop and len(w) > 2)
 
-    # Build requirement index per unit for Check 14
-    unit_req_index: list[tuple[str, str, str, set]] = []  # (unit_id, req_id, title, keywords)
+    # Build requirement index per unit for Check 14, keeping each unit's own
+    # label keywords (phase/entity name) alongside the requirement title
+    # keywords — needed below to distinguish accidental duplication from
+    # intentional per-entity/per-phase scope replication.
+    unit_req_index: list[tuple[str, str, str, set, set]] = []
+    # (unit_id, req_id, title, title_keywords, unit_label_keywords)
     for u in unit_estimates:
         u_id = u.get("unit_id", "")
+        label_kw = _normalize_title(u.get("label", u_id))
         for r in u.get("requirement_estimates", []):
             if r.get("scope_status", "IN_SCOPE").upper() == "IN_SCOPE":
                 title = r.get("title", "")
                 kw = _normalize_title(title)
                 if len(kw) >= 2:
-                    unit_req_index.append((u_id, r.get("requirement_id", ""), title, kw))
+                    unit_req_index.append((u_id, r.get("requirement_id", ""), title, kw, label_kw))
 
     overlap_warnings: list[str] = []
     seen_overlap_pairs: set[frozenset] = set()
     for i in range(len(unit_req_index)):
-        u_id_a, req_id_a, title_a, kw_a = unit_req_index[i]
+        u_id_a, req_id_a, title_a, kw_a, label_kw_a = unit_req_index[i]
         for j in range(i + 1, len(unit_req_index)):
-            u_id_b, req_id_b, title_b, kw_b = unit_req_index[j]
+            u_id_b, req_id_b, title_b, kw_b, label_kw_b = unit_req_index[j]
             # Only check cross-unit pairs
             if u_id_a == u_id_b:
                 continue
@@ -259,20 +264,40 @@ def validate_quotation(analysis: dict, estimation: dict) -> QuotationValidationR
             if pair in seen_overlap_pairs:
                 continue
             seen_overlap_pairs.add(pair)
+            if not (kw_a and kw_b):
+                continue
             # Jaccard similarity on normalised keyword sets
-            if kw_a and kw_b:
-                intersection = len(kw_a & kw_b)
-                union = len(kw_a | kw_b)
-                similarity = intersection / union if union > 0 else 0
-                if similarity >= 0.5:  # 50% keyword overlap → flag
-                    unit_label_a = next((u.get("label", u_id_a) for u in unit_estimates if u.get("unit_id") == u_id_a), u_id_a)
-                    unit_label_b = next((u.get("label", u_id_b) for u in unit_estimates if u.get("unit_id") == u_id_b), u_id_b)
-                    overlap_warnings.append(
-                        f"Check 14 WARN — Possible capability overlap ({similarity:.0%} similarity): "
-                        f"'{title_a}' ({req_id_a}, {unit_label_a}) vs "
-                        f"'{title_b}' ({req_id_b}, {unit_label_b}). "
-                        f"Review whether this is duplicate scope or legitimate incremental scope."
-                    )
+            intersection = len(kw_a & kw_b)
+            union = len(kw_a | kw_b)
+            similarity = intersection / union if union > 0 else 0
+            if similarity < 0.5:  # below 50% keyword overlap → not worth flagging
+                continue
+
+            # Entity/phase-qualifier correlation filter: two units almost
+            # always differ in their label (different phase number, entity
+            # name, region, ...). If a word that is UNIQUE to one unit's own
+            # label (e.g. "uae", present in the UAE phase's label but not the
+            # India phase's) also shows up in that same unit's requirement
+            # title, the title is explicitly self-tagged with its unit's
+            # distinguishing qualifier — e.g. "UAE Payroll Configuration" in
+            # the UAE phase vs "India Payroll Configuration" in the India
+            # phase. That is the standard shape of legitimate incremental
+            # scope across parallel entity/phase rollouts, not accidental
+            # duplication, so it's suppressed rather than flagged.
+            label_diff_a = label_kw_a - label_kw_b
+            label_diff_b = label_kw_b - label_kw_a
+            entity_correlated = bool((kw_a & label_diff_a) or (kw_b & label_diff_b))
+            if entity_correlated:
+                continue
+
+            unit_label_a = next((u.get("label", u_id_a) for u in unit_estimates if u.get("unit_id") == u_id_a), u_id_a)
+            unit_label_b = next((u.get("label", u_id_b) for u in unit_estimates if u.get("unit_id") == u_id_b), u_id_b)
+            overlap_warnings.append(
+                f"Check 14 WARN — Possible capability overlap ({similarity:.0%} similarity): "
+                f"'{title_a}' ({req_id_a}, {unit_label_a}) vs "
+                f"'{title_b}' ({req_id_b}, {unit_label_b}). "
+                f"Review whether this is duplicate scope or legitimate incremental scope."
+            )
 
     # Limit to top 10 most actionable overlap warnings to keep the report readable
     result.warnings.extend(overlap_warnings[:10])

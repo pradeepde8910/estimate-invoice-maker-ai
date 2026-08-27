@@ -131,11 +131,11 @@ def record_manual_payment(db: Session, invoice_id: str, request: PaymentManualRe
         db.add(invoice)
 
         audit = AuditLog(
-            entity_type="PAYMENT",
-            entity_id=payment.id,
             action="PAYMENT_RECORDED_MANUAL",
             user_id=user_id,
             details=json.dumps({
+                "entity_type": "PAYMENT",
+                "entity_id": payment.id,
                 "amount": str(request.amount),
                 "payment_method": request.payment_method,
                 "payment_reference": payment.payment_reference,
@@ -186,11 +186,9 @@ def initiate_payment(db: Session, invoice_id: str, request: PaymentInitiateReque
         db.flush()
         
         audit = AuditLog(
-            entity_type="PAYMENT",
-            entity_id=payment.id,
             action="PAYMENT_INITIATED",
             user_id=user_id,
-            details=json.dumps({"amount": str(request.amount)})
+            details=json.dumps({"entity_type": "PAYMENT", "entity_id": payment.id, "amount": str(request.amount)})
         )
         db.add(audit)
         db.commit()
@@ -214,11 +212,9 @@ def transition_payment_processing(db: Session, payment_id: str, user_id: str = "
         db.add(payment)
         
         audit = AuditLog(
-            entity_type="PAYMENT",
-            entity_id=payment.id,
             action="PAYMENT_PROCESSING",
             user_id=user_id,
-            details=json.dumps({"status": "PROCESSING"})
+            details=json.dumps({"entity_type": "PAYMENT", "entity_id": payment.id, "status": "PROCESSING"})
         )
         db.add(audit)
         db.commit()
@@ -284,11 +280,11 @@ def record_payment_success(db: Session, payment_id: str, request: PaymentSuccess
         db.add(invoice)
         
         audit = AuditLog(
-            entity_type="PAYMENT",
-            entity_id=payment.id,
             action="PAYMENT_SUCCESS",
             user_id=user_id,
             details=json.dumps({
+                "entity_type": "PAYMENT",
+                "entity_id": payment.id,
                 "amount": str(payment.amount),
                 "new_invoice_status": invoice.payment_status,
                 "received_at": request.received_at.isoformat()
@@ -319,11 +315,9 @@ def record_payment_failure(db: Session, payment_id: str, request: PaymentFailure
         db.add(payment)
         
         audit = AuditLog(
-            entity_type="PAYMENT",
-            entity_id=payment.id,
             action="PAYMENT_FAILED",
             user_id=user_id,
-            details=json.dumps({"remarks": request.remarks})
+            details=json.dumps({"entity_type": "PAYMENT", "entity_id": payment.id, "remarks": request.remarks})
         )
         db.add(audit)
         db.commit()
@@ -370,11 +364,11 @@ def correct_erroneous_payment(db: Session, payment_id: str, request: PaymentCorr
         db.add(payment)
         
         audit = AuditLog(
-            entity_type="PAYMENT",
-            entity_id=payment.id,
             action="PAYMENT_CORRECTION",
             user_id=user_id,
             details=json.dumps({
+                "entity_type": "PAYMENT",
+                "entity_id": payment.id,
                 "old_amount": str(old_amount),
                 "new_amount": str(request.corrected_amount),
                 "reason": request.reason

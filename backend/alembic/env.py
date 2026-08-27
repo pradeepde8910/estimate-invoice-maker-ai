@@ -24,6 +24,14 @@ from app.models.base import Base
 from app.models import project, invoice, master, payment, resource_catalog
 target_metadata = Base.metadata
 
+# This is the env.py actually wired up via alembic.ini's script_location —
+# without this, alembic.ini's literal sqlalchemy.url (sqlite:///pixami.db)
+# silently wins over DATABASE_URL, so `alembic upgrade`/`stamp` would target
+# SQLite even after the app itself connects to Postgres. See app/database.py
+# for the same DATABASE_URL/V2_DATABASE_URL resolution order.
+from app.database import DATABASE_URL
+config.set_main_option("sqlalchemy.url", DATABASE_URL)
+
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
 # my_important_option = config.get_main_option("my_important_option")

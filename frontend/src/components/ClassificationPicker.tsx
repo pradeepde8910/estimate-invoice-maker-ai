@@ -90,7 +90,15 @@ export default function ClassificationPicker({
       </button>
 
       {open && (
-        <div className="absolute z-10 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-64 overflow-y-auto">
+        // top-full (not a margin-top gap) on purpose: the dropdown is
+        // `absolute`, so it never extends the (position:relative)
+        // container's own layout box — a margin gap between the button and
+        // this list would sit outside the container's hit-test area
+        // entirely, so onMouseLeave above fired the instant the cursor
+        // crossed that gap on its way down to click an option, closing the
+        // list before it could be reached. Flush against the button keeps
+        // the hover area continuous.
+        <div className="absolute z-10 top-full w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-64 overflow-y-auto">
           {matches.length === 0 && (
             <div className="p-3 text-xs text-slate-400">
               {description.trim().length < 3
