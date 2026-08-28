@@ -1,7 +1,9 @@
 import os
+from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from app.core.database import engine, Base, init_db
 from app.services import organization_service as organization
 
@@ -48,6 +50,21 @@ app.include_router(org_api.router, tags=["Organization"])
 app.include_router(rate_cards.router, tags=["Rate Cards"])
 app.include_router(system.router, tags=["System"])
 app.include_router(clients.router, tags=["Clients"])
+
+# Serve the built frontend (frontend/dist) from this same service, so the
+# Render URL works as a single-origin app instead of returning FastAPI's bare
+# 404 for "/". Registered last so it never shadows an /api/* route above —
+# FastAPI matches routes in registration order. Guarded by existence so local
+# backend-only dev (frontend not built) is unaffected.
+FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+
+if FRONTEND_DIST.is_dir():
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def serve_frontend(full_path: str):
+        candidate = FRONTEND_DIST / full_path
+        if full_path and candidate.is_file():
+            return FileResponse(candidate)
+        return FileResponse(FRONTEND_DIST / "index.html")
 
 if __name__ == "__main__":
     import uvicorn
