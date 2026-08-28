@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { clientDisplayLabel } from '../utils/clientLabel'
 import Topbar from '../components/Topbar'
 import Card from '../components/Card'
 import { listMasterClients, listProjects, exportReport } from '../api/client'
@@ -127,23 +128,32 @@ export default function ExportCenter() {
   )
   const statusOptions = config.statusOptions ?? (reportType === 'PROJECT' ? distinctProjectStatuses : [])
 
-  // Projects don't carry a client_id in the list response (see ProjectResponse
-  // in backend/app/api/project.py) — only a denormalized client_name — so
-  // that's what we match the selected client against, same as Projects.tsx's
-  // own client filter does.
+  // Deduplicate clients by label so we don't show the exact same string multiple times
+  const uniqueClients = useMemo(() => {
+    const map = new Map<string, any>()
+    for (const c of clients) {
+      const label = clientDisplayLabel(c)
+      if (!map.has(label)) {
+        map.set(label, { ...c, aggregated_ids: [c.id], display_label: label })
+      } else {
+        map.get(label).aggregated_ids.push(c.id)
+      }
+    }
+    return Array.from(map.values())
+  }, [clients])
+
   const selectedClientName = useMemo(
-    () => clients.find((c) => c.id === clientId)?.company_name ?? null,
-    [clients, clientId]
+    () => uniqueClients.find((c) => c.aggregated_ids.join(',') === clientId)?.display_label ?? null,
+    [uniqueClients, clientId]
   )
   const projectsForClient = useMemo(
-    () => (selectedClientName ? projects.filter((p) => p.client_name === selectedClientName) : projects),
-    [projects, selectedClientName]
+    () => (clientId ? projects.filter((p) => clientId.includes(p.client_id)) : projects),
+    [projects, clientId]
   )
 
-  function handleClientChange(newClientId: string) {
-    setClientId(newClientId)
-    const newClientName = clients.find((c) => c.id === newClientId)?.company_name ?? null
-    const stillValid = !projectId || projects.some((p) => p.id === projectId && (!newClientName || p.client_name === newClientName))
+  function handleClientChange(newClientIds: string) {
+    setClientId(newClientIds)
+    const stillValid = !projectId || projects.some((p) => p.id === projectId && (!newClientIds || newClientIds.includes(p.client_id)))
     if (!stillValid) setProjectId('')
   }
 
@@ -169,7 +179,7 @@ export default function ExportCenter() {
       return
     }
     const filters: ReportFilters = {
-      client_id: clientId || null,
+      client_ids: clientId ? clientId.split(',') : null,
       project_id: config.hasProjectFilter && projectId ? projectId : null,
       statuses: statuses.length > 0 ? statuses : null,
       billing_type: config.hasBillingTypeFilter && billingType ? billingType : null,
@@ -228,8 +238,8 @@ export default function ExportCenter() {
                   className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-300"
                 >
                   <option value="">All Clients</option>
-                  {clients.map((c) => (
-                    <option key={c.id} value={c.id}>{c.company_name || c.contact_person}</option>
+                  {uniqueClients.map((c) => (
+                    <option key={c.display_label} value={c.aggregated_ids.join(',')}>{c.display_label}</option>
                   ))}
                 </select>
               </div>
@@ -245,7 +255,7 @@ export default function ExportCenter() {
                 >
                   <option value="">{selectedClientName ? `All ${selectedClientName} Projects` : 'All Projects'}</option>
                   {projectsForClient.map((p) => (
-                    <option key={p.id} value={p.id}>{p.project_name}</option>
+                    <option key={p.id} value={p.id}>{p.project_name} ({p.project_number})</option>
                   ))}
                 </select>
                 {selectedClientName && projectsForClient.length === 0 && (

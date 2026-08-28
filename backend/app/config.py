@@ -1,7 +1,15 @@
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 
+# Load .env from backend directory, repo root directory, and current working directory
+_BACKEND_DIR = Path(__file__).resolve().parent.parent
+_REPO_ROOT = _BACKEND_DIR.parent
+
+load_dotenv(_REPO_ROOT / ".env")
+load_dotenv(_BACKEND_DIR / ".env")
 load_dotenv()
+
 
 # ─── API Keys ────────────────────────────────────────────────────────────────
 MISTRAL_API_KEY: str = os.getenv("MISTRAL_API_KEY", "")

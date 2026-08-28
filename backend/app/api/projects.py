@@ -34,6 +34,7 @@ class ProjectResponse(BaseModel):
     contract_value: Decimal
     status: str
     billing_type: str | None = None
+    client_id: str | None = None
     client_name: str | None = None
 
     class Config:
@@ -345,9 +346,27 @@ def get_billing_preview(
             ProjectMilestone.status.in_(["PENDING", "PARTIALLY_BILLED"])
         ).all()
 
+        if not milestones:
+            return BillingPreviewResponse(milestones=[])
+
         from app.models.master import BillingClassification
         from app.services.billing_classification_service import match_billing_classifications
         all_classifications = db.query(BillingClassification).filter_by(active=True).all()
+        classifications_by_id = {c.id: c for c in all_classifications}
+
+        milestone_ids = [m.id for m in milestones]
+        # Query all billed or draft invoice items across all milestones in a single batch query
+        billed_items = (
+            db.query(InvoiceItem.milestone_id, InvoiceItem.task_key)
+            .join(InvoiceItem.invoice)
+            .filter(
+                InvoiceItem.milestone_id.in_(milestone_ids),
+                InvoiceItem.task_key.isnot(None),
+                Invoice.status.in_(["ISSUED", "DRAFT"])
+            )
+            .all()
+        )
+        billed_task_keys = {(item.milestone_id, item.task_key) for item in billed_items}
 
         preview_milestones = []
 
@@ -368,33 +387,15 @@ def get_billing_preview(
                     # Stable identity: e.g. "unit_id:req_index:task_index"
                     task_key = f"{m.source_unit_id}:req-{i}:task-{j}"
 
-                    # Check if already billed
-                    existing = db.query(InvoiceItem).filter(
-                        InvoiceItem.milestone_id == m.id,
-                        InvoiceItem.task_key == task_key
-                    ).join(InvoiceItem.invoice).filter(
-                        Invoice.status == "ISSUED"
-                    ).first()
-
-                    if existing:
-                        continue
-                    
-                    # Check DRAFT invoices too to prevent double-billing in drafts
-                    existing_draft = db.query(InvoiceItem).filter(
-                        InvoiceItem.milestone_id == m.id,
-                        InvoiceItem.task_key == task_key
-                    ).join(InvoiceItem.invoice).filter(
-                        Invoice.status == "DRAFT"
-                    ).first()
-                    
-                    if existing_draft:
+                    # Check if already billed or in draft in O(1) in-memory lookup
+                    if (m.id, task_key) in billed_task_keys:
                         continue
 
                     # Auto-match HSN/SAC
                     matches = match_billing_classifications(task_name, all_classifications, limit=1)
                     cls_data = None
                     if matches and matches[0]["score"] >= 2:
-                        cls_obj = db.query(BillingClassification).filter_by(id=matches[0]["id"]).first()
+                        cls_obj = classifications_by_id.get(matches[0]["id"])
                         if cls_obj:
                             cls_data = BillingPreviewClassification(
                                 id=cls_obj.id,

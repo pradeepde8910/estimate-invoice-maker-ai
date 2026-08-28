@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { clientDisplayLabel } from '../utils/clientLabel'
 import Topbar from '../components/Topbar'
 import Card from '../components/Card'
 import ClassificationPicker from '../components/ClassificationPicker'
@@ -52,6 +53,15 @@ export default function NewStandaloneInvoice() {
     const t = setTimeout(() => setClientSaved(null), 4000)
     return () => clearTimeout(t)
   }, [clientSaved])
+
+  const uniqueClients = useMemo(() => {
+    const map = new Map<string, any>()
+    for (const c of clients) {
+      const label = clientDisplayLabel(c)
+      if (!map.has(label)) map.set(label, c)
+    }
+    return Array.from(map.values())
+  }, [clients])
 
   // Same rules as ClientDetailsEditor (frontend/src/components/ClientDetailsEditor.tsx)
   // so a client entered here and one edited from an estimation are held to
@@ -218,8 +228,8 @@ export default function NewStandaloneInvoice() {
               className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-300"
             >
               <option value="">-- Choose a client --</option>
-              {clients.map((c) => (
-                <option key={c.id} value={c.id}>{c.company_name || c.contact_person}</option>
+              {uniqueClients.map((c) => (
+                <option key={c.id} value={c.id}>{clientDisplayLabel(c)}</option>
               ))}
             </select>
           ) : (

@@ -22,6 +22,8 @@ class MilestoneReport(BaseReport):
             
         if filters.client_id:
             query = query.filter(Project.client_id == filters.client_id)
+        if filters.client_ids:
+            query = query.filter(Project.client_id.in_(filters.client_ids))
         if filters.project_id:
             query = query.filter(ProjectMilestone.project_id == filters.project_id)
         if filters.statuses:

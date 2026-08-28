@@ -20,6 +20,7 @@ class ReportFilter(BaseModel):
     project_id: Optional[str] = None
     project_ids: Optional[List[str]] = None  # exact multi-select, e.g. "export exactly what I filtered on screen"
     client_id: Optional[str] = None
+    client_ids: Optional[List[str]] = None
     from_date: Optional[date] = None
     to_date: Optional[date] = None
     statuses: Optional[List[str]] = None

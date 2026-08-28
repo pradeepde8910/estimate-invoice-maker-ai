@@ -28,6 +28,11 @@ def apply_common_filters(query: Query, filters: ReportFilter, model, date_column
         if col is not None:
             query = query.filter(col == filters.client_id)
 
+    if filters.client_ids:
+        col = _column(model, 'client_id')
+        if col is not None:
+            query = query.filter(col.in_(filters.client_ids))
+
     if filters.project_id:
         col = _column(model, 'project_id')
         if col is not None:

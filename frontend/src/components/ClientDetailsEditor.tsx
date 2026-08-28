@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { patchEstimationClient, listDbClients } from '../api/client'
 import Card from './Card'
 import { EMAIL_RE, PHONE_RE, GSTIN_RE, formatGSTIN, formatPhone, uiFormatPhone } from '../utils/validation'
+import { clientDisplayLabel } from '../utils/clientLabel'
 
 export default function ClientDetailsEditor({ baseName, clientInfo, onSaved }: { baseName: string, clientInfo: any, onSaved: (newInfo: any) => void }) {
   // If the AI pipeline found no usable identity at all (no company name AND
@@ -22,6 +23,15 @@ export default function ClientDetailsEditor({ baseName, clientInfo, onSaved }: {
       listDbClients().then(res => setExistingClients(res.clients)).catch(console.error)
     }
   }, [isEditing])
+
+  const uniqueExistingClients = useMemo(() => {
+    const map = new Map<string, any>()
+    for (const c of existingClients) {
+      const label = clientDisplayLabel(c)
+      if (!map.has(label)) map.set(label, c)
+    }
+    return Array.from(map.values())
+  }, [existingClients])
   
   const [form, setForm] = useState({
     company_name: clientInfo?.company_name || '',
@@ -210,9 +220,9 @@ export default function ClientDetailsEditor({ baseName, clientInfo, onSaved }: {
             }}
           >
             <option value="">-- Select a client to autofill --</option>
-            {existingClients.map(c => (
+            {uniqueExistingClients.map(c => (
               <option key={c.id} value={c.id}>
-                {c.company_name} {c.contact_person ? `(${c.contact_person})` : ''}
+                {clientDisplayLabel(c)}
               </option>
             ))}
           </select>

@@ -11,7 +11,7 @@ from app.api import (
     hello, reports, alerts, auth, billing_classification,
     resource_catalog, quotations, master,
     jobs, estimations, documents, organization as org_api,
-    rate_cards, system, clients, invoices, projects, project_summary
+    rate_cards, system, clients, invoices, projects, project_summary, payment
 )
 
 # Initialize DB (creates tables, syncs rate cards, restores branding)
@@ -41,6 +41,7 @@ app.include_router(quotations.router, prefix="/api/quotations", tags=["Quotation
 app.include_router(invoices.router, prefix="/api/invoices", tags=["Invoices"])
 app.include_router(projects.router, prefix="/api/projects", tags=["Projects"])
 app.include_router(project_summary.router, prefix="/api/projects", tags=["Project Summary"])
+app.include_router(payment.router, prefix="/api/payments", tags=["Payments"])
 
 # Legacy V1 Extracted Routers
 app.include_router(jobs.router, tags=["Jobs"])

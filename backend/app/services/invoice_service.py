@@ -290,17 +290,32 @@ def _finalize_and_save_invoice(
     # Tax logic (Phase 5 Bucketing) — each item's taxable amount is scaled
     # down by the discount factor so GST is charged on the discounted value
     # while preserving the relative mix of GST rates across items.
-    from app.services.tax_service import calculate_taxes_by_bucket
+    from app.services.tax_service import calculate_taxes_by_bucket, resolve_state
+    from app.utils.organization import load_profile
+
+    org_profile = load_profile()
+    supplier_state = resolve_state(
+        gstin=org_profile.get("gstin"),
+        address=org_profile.get("address"),
+        default_state="Tamil Nadu"
+    )
+    buyer_state = resolve_state(
+        gstin=getattr(client, "gstin", None),
+        address=getattr(client, "billing_address", None),
+        default_state="Tamil Nadu"
+    )
+
     items_for_tax = [
         {"amount": (i.amount * discount_factor).quantize(Decimal('0.01')), "gst_rate": i.gst_rate}
         for i in invoice_items_to_create
     ]
 
     tax_buckets = calculate_taxes_by_bucket(
-        seller_state="Tamil Nadu",
-        buyer_state=client.billing_address if client.billing_address else "Tamil Nadu",
+        seller_state=supplier_state,
+        buyer_state=buyer_state,
         items=items_for_tax
     )
+
 
     total_gst = Decimal('0.00')
     for bucket in tax_buckets:

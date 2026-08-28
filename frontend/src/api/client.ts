@@ -343,6 +343,7 @@ export async function downloadProjectStatement(opts: {
 
 export interface ReportFilters {
   client_id?: string | null
+  client_ids?: string[] | null
   project_id?: string | null
   project_ids?: string[] | null
   from_date?: string | null

@@ -23,6 +23,8 @@ from app import config
 
 engine = create_engine(
     config.DATABASE_URL,
+    pool_pre_ping=True,
+    pool_recycle=3600,
     # SQLite-specific connection args (ignored by other databases like PostgreSQL)
     connect_args={"check_same_thread": False} if config.DATABASE_URL.startswith("sqlite") else {}
 )
@@ -131,9 +133,21 @@ def restore_branding_assets():
 def _run_migrations():
     """Safely add any columns that may be missing from existing tables in
     production PostgreSQL databases (SQLAlchemy create_all only creates missing
-    *tables*, not missing *columns* on already-existing tables)."""
+    *tables*, not missing *columns* on already-existing tables), and drop obsolete
+    constraints."""
     is_postgres = not config.DATABASE_URL.startswith("sqlite")
     with engine.connect() as conn:
+        if is_postgres:
+            try:
+                # Drop foreign key constraint on audit_logs.user_id if present,
+                # allowing bootstrap-admin, system jobs, and historical audit entries
+                # to be recorded safely without foreign key violations.
+                conn.execute(sa_text(
+                    "ALTER TABLE audit_logs DROP CONSTRAINT IF EXISTS audit_logs_user_id_fkey"
+                ))
+            except Exception as e:
+                print(f"[migration] Note: audit_logs_user_id_fkey drop: {e}")
+
         migrations = [
             # organization_profiles: branding columns
             ("organization_profiles", "logo_path",       "VARCHAR(255)"),
@@ -167,6 +181,7 @@ def _run_migrations():
             except Exception as e:
                 print(f"[migration] WARNING: could not add column {table}.{col}: {e}")
         conn.commit()
+
 
 
 def init_db():

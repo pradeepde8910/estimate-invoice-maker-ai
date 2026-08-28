@@ -44,3 +44,7 @@ Pillow>=10.0.0
 playwright>=1.42.0
 qrcode>=7.4.0
 reportlab>=4.0.0
+
+# Testing (dev)
+pytest>=8.0.0
+httpx>=0.27.0

@@ -14,4 +14,3 @@ class User(Base):
     role = Column(String(50), default="Admin")  # Admin, PM, Finance, Developer
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    audit_logs = relationship("AuditLog", back_populates="user")

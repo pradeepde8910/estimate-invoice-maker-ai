@@ -25,6 +25,8 @@ class PaymentReport(BaseReport):
         
         if filters.client_id:
             query = query.filter(Invoice.client_id == filters.client_id)
+        if filters.client_ids:
+            query = query.filter(Invoice.client_id.in_(filters.client_ids))
         if filters.project_id:
             query = query.filter(Invoice.project_id == filters.project_id)
         if filters.statuses:

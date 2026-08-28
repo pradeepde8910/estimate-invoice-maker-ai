@@ -45,7 +45,7 @@ def api_record_manual_payment(
     user=Depends(require_roles("Admin", "Finance"))
 ):
     try:
-        payment = record_manual_payment(db, invoice_id, request)
+        payment = record_manual_payment(db, invoice_id, request, user_id=user.id)
         return payment
     except InvalidStateTransitionError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -65,7 +65,7 @@ def api_initiate_payment(
     try:
         # Note: In a real app we would query the invoice and verify project_id == invoice.project_id
         # The service layer checks if invoice exists.
-        payment = initiate_payment(db, invoice_id, request)
+        payment = initiate_payment(db, invoice_id, request, user_id=user.id)
         return payment
     except InvalidStateTransitionError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -81,7 +81,7 @@ def api_transition_processing(
     user=Depends(require_roles("Admin", "Finance"))
 ):
     try:
-        payment = transition_payment_processing(db, payment_id)
+        payment = transition_payment_processing(db, payment_id, user_id=user.id)
         return payment
     except InvalidStateTransitionError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -98,7 +98,7 @@ def api_record_success(
     user=Depends(require_roles("Admin", "Finance"))
 ):
     try:
-        payment = record_payment_success(db, payment_id, request)
+        payment = record_payment_success(db, payment_id, request, user_id=user.id)
         return payment
     except InvalidStateTransitionError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -117,7 +117,7 @@ def api_record_failure(
     user=Depends(require_roles("Admin", "Finance"))
 ):
     try:
-        payment = record_payment_failure(db, payment_id, request)
+        payment = record_payment_failure(db, payment_id, request, user_id=user.id)
         return payment
     except InvalidStateTransitionError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -134,7 +134,7 @@ def api_correct_payment(
     user=Depends(require_roles("Admin", "Finance"))
 ):
     try:
-        payment = correct_erroneous_payment(db, payment_id, request)
+        payment = correct_erroneous_payment(db, payment_id, request, user_id=user.id)
         return payment
     except PaymentValidationError as e:
         raise HTTPException(status_code=400, detail=str(e))

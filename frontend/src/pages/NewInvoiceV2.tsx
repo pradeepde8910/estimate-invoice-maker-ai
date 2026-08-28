@@ -11,6 +11,7 @@ export default function NewInvoiceV2() {
   const [summary, setSummary] = useState<any>(null)
   const [billingPreview, setBillingPreview] = useState<any>(null)
 
+  const [loading, setLoading] = useState(true)
   const [items, setItems] = useState<any[]>([])
   // Milestone tasks grouped by their requirement (e.g. "Multilingual Speech-to-Text
   // Integration"), keyed by milestone id. Lets a non-phased milestone be billed one
@@ -27,12 +28,16 @@ export default function NewInvoiceV2() {
 
   useEffect(() => {
     if (projectId) {
-      getProjectSummary(projectId).then(setSummary)
-      getBillingPreview(projectId).then((data) => {
-        setBillingPreview(data)
+      setLoading(true)
+      Promise.all([
+        getProjectSummary(projectId),
+        getBillingPreview(projectId)
+      ]).then(([summaryData, previewData]) => {
+        setSummary(summaryData)
+        setBillingPreview(previewData)
 
         const reqMap: Record<string, any[]> = {}
-        data.milestones?.forEach((m: any) => {
+        previewData.milestones?.forEach((m: any) => {
           const groups: Record<string, any[]> = {}
           m.tasks?.forEach((t: any) => {
             const key = t.requirement_name || 'Other'
@@ -57,9 +62,41 @@ export default function NewInvoiceV2() {
           }))
         })
         setMilestoneReqs(reqMap)
+      }).catch((err) => {
+        setError(err.message || 'Failed to load project details')
+      }).finally(() => {
+        setLoading(false)
       })
     }
   }, [projectId])
+
+  function toggleAllRequirements(milestoneId: string, selectAll: boolean) {
+    setMilestoneReqs((prev) => ({
+      ...prev,
+      [milestoneId]: (prev[milestoneId] || []).map((r) => ({
+        ...r,
+        checked: selectAll,
+      })),
+    }))
+  }
+
+  if (loading) {
+    return (
+      <div className="flex-1 bg-transparent min-h-screen">
+        <Topbar showBack title="Create Invoice" subtitle="Loading project line items..." />
+        <div className="p-8 space-y-6 max-w-4xl mx-auto">
+          <Card title="Loading Line Items...">
+            <div className="animate-pulse space-y-4 py-6">
+              <div className="h-4 bg-slate-200 rounded w-1/4"></div>
+              <div className="h-12 bg-slate-100 rounded-lg"></div>
+              <div className="h-12 bg-slate-100 rounded-lg"></div>
+              <div className="h-12 bg-slate-100 rounded-lg"></div>
+            </div>
+          </Card>
+        </div>
+      </div>
+    )
+  }
 
   if (!summary) return null
   const availableComponents = summary.components?.filter((c: any) => 
@@ -186,17 +223,45 @@ export default function NewInvoiceV2() {
 
   const reqsTitle = `${summary?.delivery_unit_label || 'Milestone'} Requirements to Bill`;
 
+  const totalSelectedMilestoneAmount = Object.values(milestoneReqs).reduce((sum: number, reqs: any) => {
+    return sum + (reqs || []).filter((r: any) => r.checked).reduce((s: number, r: any) => s + r.totalAmount, 0)
+  }, 0)
+
   return (
     <div className="flex-1 bg-transparent min-h-screen">
       <Topbar showBack title="Create Invoice" subtitle={`Project: ${summary.project_name}`} />
       <div className="p-8 space-y-6 max-w-4xl mx-auto">
         {billingPreview?.milestones?.length > 0 && (
-          <Card title={reqsTitle}>
+          <Card
+            title={reqsTitle}
+            action={
+              <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
+                Selected: ₹{totalSelectedMilestoneAmount.toLocaleString('en-IN')}
+              </span>
+            }
+          >
             <div className="space-y-5">
               {billingPreview.milestones.map((m: any) => (
                 <div key={m.id} className="rounded-lg border border-slate-200">
-                  <div className="bg-slate-50 rounded-t-lg px-4 py-2 text-sm font-medium text-slate-700 border-b border-slate-200">
-                    {m.name}
+                  <div className="bg-slate-50 rounded-t-lg px-4 py-2.5 text-sm font-medium text-slate-700 border-b border-slate-200 flex items-center justify-between">
+                    <span>{m.name}</span>
+                    <div className="flex items-center gap-2.5">
+                      <button
+                        type="button"
+                        onClick={() => toggleAllRequirements(m.id, true)}
+                        className="text-xs font-semibold text-brand-600 hover:text-brand-700 hover:underline"
+                      >
+                        Select All
+                      </button>
+                      <span className="text-slate-300 text-xs">|</span>
+                      <button
+                        type="button"
+                        onClick={() => toggleAllRequirements(m.id, false)}
+                        className="text-xs font-medium text-slate-500 hover:text-slate-700 hover:underline"
+                      >
+                        Deselect All
+                      </button>
+                    </div>
                   </div>
                   <div className="divide-y divide-slate-100">
                     {(milestoneReqs[m.id] || []).map((r: any) => (
@@ -239,6 +304,7 @@ export default function NewInvoiceV2() {
             </div>
           </Card>
         )}
+
 
         <Card title="Other Line Items (Commercial Components / Custom)">
           <div className="space-y-6">

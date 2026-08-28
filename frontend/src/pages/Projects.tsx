@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Topbar from '../components/Topbar'
 import Card from '../components/Card'
-import { listProjects, downloadProjectStatement, listStandaloneInvoices } from '../api/client'
+import { listProjects, downloadProjectStatement, listStandaloneInvoices, listMasterClients } from '../api/client'
+import { clientDisplayLabel } from '../utils/clientLabel'
 
 const money = (v: string | number) => '₹' + parseFloat(String(v)).toLocaleString('en-IN', { minimumFractionDigits: 2 })
 
@@ -25,6 +26,7 @@ function StatusBadge({ status }: { status: string }) {
 export default function Projects() {
   const [projects, setProjects] = useState<any[]>([])
   const [standaloneInvoices, setStandaloneInvoices] = useState<any[]>([])
+  const [clients, setClients] = useState<any[]>([])
   const [search, setSearch] = useState('')
   const [clientFilter, setClientFilter] = useState('')
   const [billingFilter, setBillingFilter] = useState('')
@@ -46,12 +48,21 @@ export default function Projects() {
     listStandaloneInvoices()
       .then(setStandaloneInvoices)
       .catch(() => {})
+    listMasterClients()
+      .then(setClients)
+      .catch(() => {})
   }, [])
 
-  const distinctClients = useMemo(
-    () => Array.from(new Set(projects.map((p) => p.client_name).filter(Boolean))).sort(),
-    [projects]
-  )
+  const distinctClientLabels = useMemo(() => {
+    const labels = new Set<string>()
+    for (const p of projects) {
+      if (!p.client_id) continue
+      const c = clients.find((x) => x.id === p.client_id)
+      const label = c ? clientDisplayLabel(c) : p.client_name || 'Unknown'
+      labels.add(label)
+    }
+    return Array.from(labels).sort()
+  }, [projects, clients])
   const distinctBillingTypes = useMemo(
     () => Array.from(new Set(projects.map((p) => p.billing_type).filter(Boolean))).sort(),
     [projects]
@@ -70,7 +81,11 @@ export default function Projects() {
         (p.client_name || '').toLowerCase().includes(q)
       if (!matches) return false
     }
-    if (clientFilter && p.client_name !== clientFilter) return false
+    if (clientFilter && p.client_id) {
+      const c = clients.find((x) => x.id === p.client_id)
+      const label = c ? clientDisplayLabel(c) : p.client_name || 'Unknown'
+      if (label !== clientFilter) return false
+    }
     if (billingFilter && p.billing_type !== billingFilter) return false
     if (statusFilter && p.status !== statusFilter) return false
     return true
@@ -118,8 +133,10 @@ export default function Projects() {
                   className="bg-white shadow-card rounded-full px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
                 >
                   <option value="">All Clients</option>
-                  {distinctClients.map((c) => (
-                    <option key={c} value={c}>{c}</option>
+                  {distinctClientLabels.map((label) => (
+                    <option key={label} value={label}>
+                      {label}
+                    </option>
                   ))}
                 </select>
                 <select
