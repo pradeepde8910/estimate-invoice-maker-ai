@@ -28,7 +28,7 @@ export default function Home() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => navigate('/organization')}
+            onClick={() => navigate('/estimation/organization')}
             className="w-9 h-9 rounded-full text-slate-400 hover:bg-slate-50 hover:text-slate-600 flex items-center justify-center"
             title="Organization Settings"
           >
