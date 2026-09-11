@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import toast from 'react-hot-toast'
 import Topbar from '../components/Topbar'
 import Card from '../components/Card'
 import { inr } from '../components/EstimationResult'
@@ -9,7 +10,6 @@ import type { ClientGroup, DocumentSummary } from '../api/types'
 
 export default function InvoiceHistory() {
   const [clients, setClients] = useState<ClientGroup[] | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<DocumentSummary | null>(null)
   const [deleting, setDeleting] = useState(false)
   const navigate = useNavigate()
@@ -17,7 +17,7 @@ export default function InvoiceHistory() {
   function refresh() {
     listClients()
       .then((r) => setClients(r.clients))
-      .catch((e) => setError(e.message))
+      .catch((e) => toast.error(e.message))
   }
 
   useEffect(() => {
@@ -27,13 +27,12 @@ export default function InvoiceHistory() {
   async function handleDelete() {
     if (!deleteTarget || !deleteTarget.invoice_meta) return
     setDeleting(true)
-    setError(null)
     try {
       await deleteInvoice(deleteTarget.invoice_meta.invoice_number)
       setDeleteTarget(null)
       refresh()
     } catch (e: any) {
-      setError(e.message)
+      toast.error(e.message)
     } finally {
       setDeleting(false)
     }
@@ -42,7 +41,7 @@ export default function InvoiceHistory() {
   return (
     <div className="flex-1 bg-transparent min-h-screen">
       <Topbar showBack title="Invoice History" subtitle="Every estimation, ready to be invoiced or already invoiced." />
-      <div className="p-8 space-y-6">
+      <div className="p-4 sm:p-8 space-y-6">
         <div className="flex justify-end">
           <button
             onClick={() => navigate('/invoice/new')}
@@ -52,7 +51,6 @@ export default function InvoiceHistory() {
           </button>
         </div>
 
-        {error && <div className="text-sm text-coral-600 bg-coral-50 rounded-2xl px-4 py-3">{error}</div>}
         {!clients ? (
           <p className="text-sm text-slate-400">Loading…</p>
         ) : clients.length === 0 ? (

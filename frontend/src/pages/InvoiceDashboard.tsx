@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import toast from 'react-hot-toast'
 import Topbar from '../components/Topbar'
 import Card from '../components/Card'
 import StatCard from '../components/StatCard'
@@ -12,7 +13,6 @@ import type { Analytics, DocumentSummary } from '../api/types'
 
 export default function InvoiceDashboard() {
   const [data, setData] = useState<Analytics | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<DocumentSummary | null>(null)
   const [deleting, setDeleting] = useState(false)
   const navigate = useNavigate()
@@ -20,7 +20,7 @@ export default function InvoiceDashboard() {
   function refresh() {
     getAnalytics()
       .then(setData)
-      .catch((e) => setError(e.message))
+      .catch((e) => toast.error(e.message))
   }
 
   useEffect(() => {
@@ -30,13 +30,12 @@ export default function InvoiceDashboard() {
   async function handleDelete() {
     if (!deleteTarget || !deleteTarget.invoice_meta) return
     setDeleting(true)
-    setError(null)
     try {
       await deleteInvoice(deleteTarget.invoice_meta.invoice_number)
       setDeleteTarget(null)
       refresh()
     } catch (e: any) {
-      setError(e.message)
+      toast.error(e.message)
     } finally {
       setDeleting(false)
     }
@@ -47,7 +46,7 @@ export default function InvoiceDashboard() {
   return (
     <div className="flex-1 bg-transparent min-h-screen">
       <Topbar showBack title="Invoice Dashboard" subtitle="Revenue and payment status across every invoice." />
-      <div className="p-8 space-y-6">
+      <div className="p-4 sm:p-8 space-y-6">
         <div className="flex justify-end">
           <button
             onClick={() => navigate('/invoice/new')}
@@ -57,7 +56,6 @@ export default function InvoiceDashboard() {
           </button>
         </div>
 
-        {error && <div className="text-sm text-coral-600 bg-coral-50 rounded-2xl px-4 py-3">{error}</div>}
         {!data ? (
           <p className="text-sm text-slate-400">Loading…</p>
         ) : (

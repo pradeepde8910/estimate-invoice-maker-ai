@@ -84,7 +84,7 @@ export default function NewInvoiceV2() {
     return (
       <div className="flex-1 bg-transparent min-h-screen">
         <Topbar showBack title="Create Invoice" subtitle="Loading project line items..." />
-        <div className="p-8 space-y-6 max-w-4xl mx-auto">
+        <div className="p-4 sm:p-8 space-y-6 max-w-4xl mx-auto">
           <Card title="Loading Line Items...">
             <div className="animate-pulse space-y-4 py-6">
               <div className="h-4 bg-slate-200 rounded w-1/4"></div>
@@ -230,7 +230,7 @@ export default function NewInvoiceV2() {
   return (
     <div className="flex-1 bg-transparent min-h-screen">
       <Topbar showBack title="Create Invoice" subtitle={`Project: ${summary.project_name}`} />
-      <div className="p-8 space-y-6 max-w-4xl mx-auto">
+      <div className="p-4 sm:p-8 space-y-6 max-w-4xl mx-auto">
         {billingPreview?.milestones?.length > 0 && (
           <Card
             title={reqsTitle}
@@ -243,9 +243,9 @@ export default function NewInvoiceV2() {
             <div className="space-y-5">
               {billingPreview.milestones.map((m: any) => (
                 <div key={m.id} className="rounded-lg border border-slate-200">
-                  <div className="bg-slate-50 rounded-t-lg px-4 py-2.5 text-sm font-medium text-slate-700 border-b border-slate-200 flex items-center justify-between">
-                    <span>{m.name}</span>
-                    <div className="flex items-center gap-2.5">
+                  <div className="bg-slate-50 rounded-t-lg px-4 py-2.5 text-sm font-medium text-slate-700 border-b border-slate-200 flex items-center justify-between flex-wrap gap-2">
+                    <span className="truncate min-w-0" title={m.name}>{m.name}</span>
+                    <div className="flex items-center gap-2.5 shrink-0">
                       <button
                         type="button"
                         onClick={() => toggleAllRequirements(m.id, true)}
@@ -312,8 +312,8 @@ export default function NewInvoiceV2() {
             {items.map((item, index) => (
               <div key={index} className="flex gap-4 items-start p-4 bg-slate-50 rounded-lg border border-slate-200">
                 <div className="flex-1 space-y-4">
-                  <div className="flex gap-4">
-                    <div className="w-1/3">
+                  <div className="flex flex-col sm:flex-row gap-4">
+                    <div className="w-full sm:w-1/3">
                       <label className="block text-xs font-medium text-slate-500 mb-1">Source Type</label>
                       <select
                         value={item.source_type}
@@ -348,7 +348,7 @@ export default function NewInvoiceV2() {
                       </div>
                     )}
                   </div>
-                  <div className="flex gap-4">
+                  <div className="flex flex-col sm:flex-row gap-4">
                     <div className="flex-1">
                       <label className="block text-xs font-medium text-slate-500 mb-1">Line Item Description</label>
                       <input
@@ -359,7 +359,7 @@ export default function NewInvoiceV2() {
                         placeholder="Description to appear on invoice"
                       />
                     </div>
-                    <div className="w-1/4">
+                    <div className="w-full sm:w-1/4">
                       <label className="block text-xs font-medium text-slate-500 mb-1">Amount (₹)</label>
                       <input
                         type="number"
@@ -389,7 +389,7 @@ export default function NewInvoiceV2() {
               + Add Line Item
             </button>
 
-            <div className="pt-4 border-t border-slate-100 grid grid-cols-3 gap-4">
+            <div className="pt-4 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">PO Number (optional)</label>
                 <input

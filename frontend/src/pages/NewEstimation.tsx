@@ -79,20 +79,26 @@ export default function NewEstimation() {
 
   return (
     <div className="flex-1 bg-transparent min-h-screen">
-      <Topbar showBack title="New Estimation" subtitle="Upload a requirement document to get an AI-generated cost & timeline estimate." />
+      <Topbar title="New Estimation" subtitle="Upload a requirement document to get an AI-generated cost & timeline estimate." />
       <div className="p-8 space-y-6">
         {!showForm && (
-          <div className="flex items-center justify-between">
-            <div className="text-sm text-slate-500">
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+            <div className="text-sm text-slate-500 min-w-0 flex items-baseline gap-1">
               {job ? (
                 <>
-                  Estimating for <span className="font-semibold text-slate-800">{job.result?.client_name || job.source_name}</span>
+                  <span className="shrink-0">Estimating for</span>
+                  <span
+                    className="font-semibold text-slate-800 truncate"
+                    title={job.result?.client_name || job.source_name}
+                  >
+                    {job.result?.client_name || job.source_name}
+                  </span>
                 </>
               ) : (
                 'Loading…'
               )}
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               {isActive ? (
                 <button
                   onClick={handleCancel}
@@ -193,6 +199,15 @@ export default function NewEstimation() {
   )
 }
 
+const isValidUrl = (urlString: string) => {
+  try {
+    const parsed = new URL(urlString)
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
+  } catch (e) {
+    return false
+  }
+}
+
 function NewEstimationForm({ onCreated, onCancel }: { onCreated: (jobId: string) => void; onCancel?: () => void }) {
   const [mode, setMode] = useState<Mode>('file')
   const [file, setFile] = useState<File | null>(null)
@@ -203,12 +218,66 @@ function NewEstimationForm({ onCreated, onCancel }: { onCreated: (jobId: string)
   const [dragOver, setDragOver] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const canSubmit =
-    !submitting && ((mode === 'file' && file) || (mode === 'url' && url.trim()) || (mode === 'text' && text.trim().length > 20))
+  useEffect(() => {
+    if (error) {
+      const timer = setTimeout(() => setError(null), 5000)
+      return () => clearTimeout(timer)
+    }
+  }, [error])
+
+  const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
+
+  const handleFileSelect = (f: File | undefined | null) => {
+    if (!f) {
+      setFile(null)
+      return
+    }
+    if (f.size > MAX_FILE_SIZE) {
+      setError('File size must be less than 5MB')
+      setFile(null)
+      return
+    }
+    setError(null)
+    setFile(f)
+  }
+
+  const canSubmit = !submitting
 
   async function handleSubmit() {
     setSubmitting(true)
     setError(null)
+
+    if (mode === 'file' && !file) {
+      setError('File is required')
+      setSubmitting(false)
+      return
+    }
+    if (mode === 'url' && (!url.trim() || !isValidUrl(url.trim()))) {
+      setError('Please enter a valid HTTP/HTTPS URL.')
+      setSubmitting(false)
+      return
+    }
+    if (mode === 'text' && text.trim().length === 0) {
+      setError('Text is required')
+      setSubmitting(false)
+      return
+    }
+    if (mode === 'text' && text.trim().length <= 20) {
+      setError('Please provide a more detailed requirement description (at least 20 characters).')
+      setSubmitting(false)
+      return
+    }
+    if (mode === 'text' && text.length > 20000) {
+      setError('Text is too long (maximum 20,000 characters). Please provide a more concise description or use a document upload.')
+      setSubmitting(false)
+      return
+    }
+    if (mode === 'text' && /[\uFFFD\x00-\x08\x0B\x0C\x0E-\x1F]/.test(text)) {
+      setError('Text contains unsupported or invalid characters. Please remove any special symbols or formatting.')
+      setSubmitting(false)
+      return
+    }
+
     try {
       const { job_id } = await createJob({
         file: mode === 'file' && file ? file : undefined,
@@ -226,8 +295,8 @@ function NewEstimationForm({ onCreated, onCancel }: { onCreated: (jobId: string)
 
   return (
     <Card>
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex gap-2 bg-slate-50 rounded-full p-1 w-fit">
+      <div className="flex flex-wrap items-center justify-between gap-y-2 mb-6">
+        <div className="flex flex-wrap gap-2 bg-slate-50 rounded-full p-1 w-fit">
           {(['file', 'url', 'text'] as Mode[]).map((m) => (
             <button
               key={m}
@@ -257,8 +326,7 @@ function NewEstimationForm({ onCreated, onCancel }: { onCreated: (jobId: string)
           onDrop={(e) => {
             e.preventDefault()
             setDragOver(false)
-            const f = e.dataTransfer.files?.[0]
-            if (f) setFile(f)
+            handleFileSelect(e.dataTransfer.files?.[0])
           }}
           onClick={() => inputRef.current?.click()}
           className={`border-2 border-dashed rounded-3xl py-12 text-center cursor-pointer transition-colors ${
@@ -270,7 +338,7 @@ function NewEstimationForm({ onCreated, onCancel }: { onCreated: (jobId: string)
             type="file"
             accept=".pdf,.docx,.txt,.md,.csv"
             className="hidden"
-            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            onChange={(e) => handleFileSelect(e.target.files?.[0])}
           />
           <div className="text-4xl mb-3">📄</div>
           {file ? (
@@ -281,7 +349,7 @@ function NewEstimationForm({ onCreated, onCancel }: { onCreated: (jobId: string)
           ) : (
             <div>
               <div className="font-medium text-slate-700">Drag & drop a PDF, DOCX or text file</div>
-              <div className="text-xs text-slate-400 mt-1">or click to browse</div>
+              <div className="text-xs text-slate-400 mt-1">or click to browse (Max size: 5MB)</div>
             </div>
           )}
         </div>
@@ -294,8 +362,13 @@ function NewEstimationForm({ onCreated, onCancel }: { onCreated: (jobId: string)
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             placeholder="https://example.com/requirements.pdf"
-            className="mt-2 w-full border border-slate-200 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
+            className={`mt-2 w-full border ${
+              url.trim() && !isValidUrl(url.trim()) ? 'border-coral-500 focus:ring-coral-300' : 'border-slate-200 focus:ring-brand-300'
+            } rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2`}
           />
+          {url.trim() && !isValidUrl(url.trim()) && (
+            <p className="text-xs text-coral-500 mt-2">Please enter a valid HTTP/HTTPS URL.</p>
+          )}
         </div>
       )}
 
@@ -306,14 +379,37 @@ function NewEstimationForm({ onCreated, onCancel }: { onCreated: (jobId: string)
             value={text}
             onChange={(e) => setText(e.target.value)}
             rows={8}
+            maxLength={20000}
             placeholder="Prepared for Acme Corp. Build an e-commerce platform with user authentication, product catalog, cart, and payments..."
             className="mt-2 w-full border border-slate-200 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300 resize-none"
           />
-          <p className="text-xs text-slate-400 mt-2">Tip: mention the client/company name so it's captured correctly.</p>
+          <div className="flex justify-between items-center mt-2">
+            <p className="text-xs text-slate-400">Tip: mention the client/company name so it's captured correctly.</p>
+            <p className={`text-xs ${text.length > 19000 ? 'text-coral-500 font-medium' : 'text-slate-400'}`}>
+              {text.length.toLocaleString()} / 20,000
+            </p>
+          </div>
         </div>
       )}
 
-      {error && <div className="mt-4 text-sm text-coral-600 bg-coral-50 rounded-2xl px-3 py-2">{error}</div>}
+      {error && (
+        <div className="fixed top-4 left-4 right-4 sm:left-auto sm:right-6 sm:top-6 z-50 flex items-start gap-3 bg-white shadow-2xl rounded-2xl p-4 border-l-4 border-coral-500 animate-in fade-in slide-in-from-top-4 duration-300 sm:max-w-sm">
+          <div className="bg-coral-50 text-coral-600 rounded-full p-1 mt-0.5">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <div className="flex-1">
+            <h3 className="text-sm font-bold text-slate-800">Validation Error</h3>
+            <p className="text-sm text-slate-600 mt-1">{error}</p>
+          </div>
+          <button onClick={() => setError(null)} className="text-slate-400 hover:text-slate-600 transition-colors p-1">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      )}
 
       <button
         disabled={!canSubmit}

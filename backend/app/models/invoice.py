@@ -52,14 +52,14 @@ class Invoice(Base):
     invoice_date = Column(DateTime, nullable=True)
     due_date = Column(DateTime, nullable=True)
 
-    status = Column(String(50), nullable=False, default="DRAFT") # DRAFT, ISSUED, CANCELLED
+    status = Column(String(50), nullable=False, default="DRAFT") # DRAFT, ISSUED
     payment_status = Column(String(50), nullable=False, default="UNPAID") # UNPAID, INITIATED, PARTIALLY_PAID, PAID
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     __table_args__ = (
-        CheckConstraint(status.in_(['DRAFT', 'ISSUED', 'CANCELLED']), name='chk_invoice_status'),
+        CheckConstraint(status.in_(['DRAFT', 'ISSUED']), name='chk_invoice_status'),
         CheckConstraint(payment_status.in_(['UNPAID', 'INITIATED', 'PARTIALLY_PAID', 'PAID']), name='chk_payment_status'),
         CheckConstraint(invoice_type.in_(['PROJECT', 'STANDALONE']), name='chk_invoice_type'),
     )

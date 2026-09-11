@@ -24,6 +24,13 @@ export default function ClientDetailsEditor({ baseName, clientInfo, onSaved }: {
     }
   }, [isEditing])
 
+  useEffect(() => {
+    if (error) {
+      const timer = setTimeout(() => setError(null), 5000)
+      return () => clearTimeout(timer)
+    }
+  }, [error])
+
   const uniqueExistingClients = useMemo(() => {
     const map = new Map<string, any>()
     for (const c of existingClients) {
@@ -123,7 +130,7 @@ export default function ClientDetailsEditor({ baseName, clientInfo, onSaved }: {
         <div className="grid grid-cols-2 md:grid-cols-3 gap-6 mb-6">
           <div>
             <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Company / Organization</div>
-            <div className="text-sm font-medium text-slate-900">
+            <div className="text-sm font-medium text-slate-900 break-all">
               {clientInfo?.company_name || (
                 !clientInfo?.contact_person
                   ? <span className="inline-flex items-center gap-1 text-amber-600 text-xs font-semibold bg-amber-50 px-2 py-0.5 rounded">⚠ Required — add this or Contact Person</span>
@@ -133,7 +140,7 @@ export default function ClientDetailsEditor({ baseName, clientInfo, onSaved }: {
           </div>
           <div>
             <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Contact Person</div>
-            <div className="text-sm font-medium text-slate-900">
+            <div className="text-sm font-medium text-slate-900 break-all">
               {clientInfo?.contact_person || (
                 !clientInfo?.company_name
                   ? <span className="inline-flex items-center gap-1 text-amber-600 text-xs font-semibold bg-amber-50 px-2 py-0.5 rounded">⚠ Required — add this or Company Name</span>
@@ -143,19 +150,19 @@ export default function ClientDetailsEditor({ baseName, clientInfo, onSaved }: {
           </div>
           <div>
             <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Email Address</div>
-            <div className="text-sm font-medium text-slate-900">{clientInfo?.email || <span className="text-slate-400 italic">Not specified</span>}</div>
+            <div className="text-sm font-medium text-slate-900 break-all">{clientInfo?.email || <span className="text-slate-400 italic">Not specified</span>}</div>
           </div>
           <div>
             <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Phone Number</div>
-            <div className="text-sm font-medium text-slate-900">{clientInfo?.phone || <span className="text-slate-400 italic">Not specified</span>}</div>
+            <div className="text-sm font-medium text-slate-900 break-all">{clientInfo?.phone || <span className="text-slate-400 italic">Not specified</span>}</div>
           </div>
           <div>
             <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">GSTIN / Tax ID</div>
-            <div className="text-sm font-medium text-slate-900">{clientInfo?.gstin || <span className="text-slate-400 italic">Not specified</span>}</div>
+            <div className="text-sm font-medium text-slate-900 break-all">{clientInfo?.gstin || <span className="text-slate-400 italic">Not specified</span>}</div>
           </div>
           <div className="col-span-2 md:col-span-1">
             <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Billing Address</div>
-            <div className="text-sm font-medium text-slate-900 whitespace-pre-wrap">{clientInfo?.billing_address || <span className="text-slate-400 italic">Not specified</span>}</div>
+            <div className="text-sm font-medium text-slate-900 whitespace-pre-wrap break-all">{clientInfo?.billing_address || <span className="text-slate-400 italic">Not specified</span>}</div>
           </div>
         </div>
 
@@ -193,7 +200,24 @@ export default function ClientDetailsEditor({ baseName, clientInfo, onSaved }: {
         </div>
       )}
 
-      {error && <div className="p-3 bg-red-50 text-red-700 text-sm rounded-lg mb-4">{error}</div>}
+      {error && (
+        <div className="fixed top-6 right-6 z-50 flex items-start gap-3 bg-white shadow-2xl rounded-2xl p-4 border-l-4 border-coral-500 animate-in fade-in slide-in-from-top-4 duration-300 max-w-sm">
+          <div className="bg-coral-50 text-coral-600 rounded-full p-1 mt-0.5">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <div className="flex-1">
+            <h3 className="text-sm font-bold text-slate-800">Error</h3>
+            <p className="text-sm text-slate-600 mt-1">{error}</p>
+          </div>
+          <button onClick={() => setError(null)} className="text-slate-400 hover:text-slate-600 transition-colors p-1">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      )}
 
       {existingClients.length > 0 && (
         <div className="mb-6 bg-slate-50 p-4 rounded-xl border border-slate-200">
@@ -231,9 +255,12 @@ export default function ClientDetailsEditor({ baseName, clientInfo, onSaved }: {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Company / Organization Name</label>
+          <label className="block text-sm font-medium text-slate-700 mb-1">
+            Company / Organization Name <span className="text-coral-500 ml-0.5">*</span>
+          </label>
           <input 
             type="text" 
+            maxLength={100}
             value={form.company_name} 
             onChange={e => {
               setForm({...form, company_name: e.target.value})
@@ -242,12 +269,19 @@ export default function ClientDetailsEditor({ baseName, clientInfo, onSaved }: {
             className={`w-full px-3 py-2 border rounded-lg focus:ring-2 outline-none text-sm ${fieldErrors.company_name ? 'border-red-300 focus:ring-red-200' : 'border-slate-300 focus:ring-blue-500'}`}
             placeholder="e.g. Acme Corp"
           />
-          {fieldErrors.company_name && <p className="text-xs text-red-600 mt-1">{fieldErrors.company_name}</p>}
+          {fieldErrors.company_name ? (
+            <p className="text-xs text-red-600 mt-1">{fieldErrors.company_name}</p>
+          ) : (
+            <p className="text-xs text-slate-400 mt-1">Required — or fill in Contact Person instead. Up to 100 characters</p>
+          )}
         </div>
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Contact Person</label>
+          <label className="block text-sm font-medium text-slate-700 mb-1">
+            Contact Person <span className="text-coral-500 ml-0.5">*</span>
+          </label>
           <input 
             type="text" 
+            maxLength={100}
             value={form.contact_person} 
             onChange={e => {
               setForm({...form, contact_person: e.target.value})
@@ -256,52 +290,78 @@ export default function ClientDetailsEditor({ baseName, clientInfo, onSaved }: {
             className={`w-full px-3 py-2 border rounded-lg focus:ring-2 outline-none text-sm ${fieldErrors.contact_person ? 'border-red-300 focus:ring-red-200' : 'border-slate-300 focus:ring-blue-500'}`}
             placeholder="e.g. Jane Doe"
           />
-          {fieldErrors.contact_person && <p className="text-xs text-red-600 mt-1">{fieldErrors.contact_person}</p>}
+          {fieldErrors.contact_person ? (
+            <p className="text-xs text-red-600 mt-1">{fieldErrors.contact_person}</p>
+          ) : (
+            <p className="text-xs text-slate-400 mt-1">Required — or fill in Company Name instead. Up to 100 characters</p>
+          )}
         </div>
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
-          <input 
-            type="email" 
-            value={form.email} 
+          <input
+            type="email"
+            maxLength={100}
+            value={form.email}
             onChange={e => {
               setForm({...form, email: e.target.value})
               setFieldErrors({...fieldErrors, email: ''})
             }}
             className={`w-full px-3 py-2 border rounded-lg focus:ring-2 outline-none text-sm ${fieldErrors.email ? 'border-red-300 focus:ring-red-200' : 'border-slate-300 focus:ring-blue-500'}`}
+            placeholder="e.g. name@company.com"
           />
-          {fieldErrors.email && <p className="text-xs text-red-600 mt-1">{fieldErrors.email}</p>}
+          {fieldErrors.email ? (
+            <p className="text-xs text-red-600 mt-1">{fieldErrors.email}</p>
+          ) : (
+            <p className="text-xs text-slate-400 mt-1">Must be a valid email address</p>
+          )}
         </div>
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1">Phone</label>
-          <input 
-            type="tel" 
+          <input
+            type="tel"
             inputMode="numeric"
-            value={form.phone ? uiFormatPhone(form.phone) : ''} 
+            maxLength={20}
+            value={form.phone ? uiFormatPhone(form.phone) : ''}
             onChange={e => {
               setForm({...form, phone: uiFormatPhone(e.target.value)})
               setFieldErrors({...fieldErrors, phone: ''})
             }}
             className={`w-full px-3 py-2 border rounded-lg focus:ring-2 outline-none text-sm ${fieldErrors.phone ? 'border-red-300 focus:ring-red-200' : 'border-slate-300 focus:ring-blue-500'}`}
+            placeholder="e.g. 98765 43210"
           />
-          {fieldErrors.phone && <p className="text-xs text-red-600 mt-1">{fieldErrors.phone}</p>}
+          {fieldErrors.phone ? (
+            <p className="text-xs text-red-600 mt-1">{fieldErrors.phone}</p>
+          ) : (
+            <p className="text-xs text-slate-400 mt-1">10-digit Indian mobile number</p>
+          )}
         </div>
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1">GSTIN / Tax ID</label>
-          <input 
-            type="text" 
-            value={form.gstin} 
+          <input
+            type="text"
+            maxLength={15}
+            value={form.gstin}
             onChange={e => {
               setForm({...form, gstin: formatGSTIN(e.target.value)})
               setFieldErrors({...fieldErrors, gstin: ''})
             }}
             className={`w-full px-3 py-2 border rounded-lg focus:ring-2 outline-none text-sm ${fieldErrors.gstin ? 'border-red-300 focus:ring-red-200' : 'border-slate-300 focus:ring-blue-500'}`}
+            placeholder="e.g. 22AAAAA0000A1Z5"
           />
-          {fieldErrors.gstin && <p className="text-xs text-red-600 mt-1">{fieldErrors.gstin}</p>}
+          {fieldErrors.gstin ? (
+            <p className="text-xs text-red-600 mt-1">{fieldErrors.gstin}</p>
+          ) : (
+            <p className="text-xs text-slate-400 mt-1">15-character GSTIN format</p>
+          )}
         </div>
         <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-slate-700 mb-1">Billing Address</label>
-          <textarea 
-            value={form.billing_address} 
+          <label className="flex items-baseline justify-between text-sm font-medium text-slate-700 mb-1">
+            <span>Billing Address</span>
+            <span className="text-xs font-normal text-slate-400">{form.billing_address.length}/500</span>
+          </label>
+          <textarea
+            maxLength={500}
+            value={form.billing_address}
             onChange={e => {
               setForm({...form, billing_address: e.target.value})
               setFieldErrors({...fieldErrors, billing_address: ''})
@@ -318,20 +378,23 @@ export default function ClientDetailsEditor({ baseName, clientInfo, onSaved }: {
         >
           Cancel
         </button>
-        <button 
-          onClick={() => handleSave(false)} 
-          disabled={saving}
-          className="px-4 py-2 bg-slate-800 text-white hover:bg-slate-900 text-sm font-semibold rounded-lg transition-colors disabled:opacity-50"
-        >
-          {saving ? 'Saving...' : 'Save Changes'}
-        </button>
-        <button 
-          onClick={() => handleSave(true)} 
-          disabled={saving || !hasMinRequired}
-          className="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 text-sm font-semibold rounded-lg transition-colors ml-auto disabled:opacity-50"
-        >
-          {saving ? 'Confirming...' : 'Save & Confirm Identity'}
-        </button>
+        {isConfirmed ? (
+          <button 
+            onClick={() => handleSave(false)} 
+            disabled={saving}
+            className="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 text-sm font-semibold rounded-lg transition-colors ml-auto disabled:opacity-50"
+          >
+            {saving ? 'Saving...' : 'Save Changes'}
+          </button>
+        ) : (
+          <button 
+            onClick={() => handleSave(hasMinRequired)} 
+            disabled={saving}
+            className="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 text-sm font-semibold rounded-lg transition-colors ml-auto disabled:opacity-50"
+          >
+            {saving ? 'Saving...' : (hasMinRequired ? 'Save & Confirm Identity' : 'Save as Draft')}
+          </button>
+        )}
       </div>
     </Card>
   )

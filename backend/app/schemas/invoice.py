@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, model_validator, root_validator
-from typing import Optional
+from typing import Optional, Literal
 from decimal import Decimal
 
 from typing import List
@@ -70,7 +70,7 @@ class StandaloneInvoiceCreateRequest(BaseModel):
         return self
 
 class InvoiceStatusUpdateRequest(BaseModel):
-    status: str = Field(..., description="Must be DRAFT, ISSUED, or CANCELLED")
+    status: Literal["DRAFT", "ISSUED"]
 
 from datetime import datetime
 

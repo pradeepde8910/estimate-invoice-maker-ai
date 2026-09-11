@@ -126,7 +126,7 @@ async def create_manual_estimation(
 # due_date/paid_on/payment_mode/invoice_html on one row keyed by
 # estimation_id) that's incompatible with — and would collide with — the
 # real V2 Invoice model (project-attached, with separate InvoiceTax/
-# InvoiceTDS/Payment tables and a DRAFT/ISSUED/CANCELLED + payment_status
+# InvoiceTDS/Payment tables and a DRAFT/ISSUED + payment_status
 # vocabulary). Deliberately dropped rather than ported: the supported flow
 # is now Approve estimation -> Convert to Project -> create invoice, which
 # is what this app's invoicing (billing types, PDF rendering, payments) was
@@ -202,6 +202,33 @@ async def patch_estimation_client(
         db.close()
 
 
+_CLIENT_REQUIRED_FOR_APPROVAL = [
+    ("company_name", "Company / Organization Name"),
+    ("contact_person", "Contact Person"),
+    ("email", "Email"),
+    ("phone", "Phone"),
+    ("gstin", "GSTIN / Tax ID"),
+    ("billing_address", "Billing Address"),
+]
+
+
+def _require_complete_client(client) -> None:
+    """Approving an estimation is what unlocks project conversion, so every
+    client field needs to be in before that happens — catching a gap here
+    instead of at conversion time, when it's a much less obvious place to
+    have to come back and fix it."""
+    if client is None:
+        raise HTTPException(status_code=400, detail="Add client details before approving this estimation.")
+    if client.status != "CONFIRMED":
+        raise HTTPException(status_code=400, detail="Confirm the client details before approving this estimation.")
+    missing = [label for field, label in _CLIENT_REQUIRED_FOR_APPROVAL if not (getattr(client, field) or "").strip()]
+    if missing:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Complete the client's {', '.join(missing)} before approving this estimation.",
+        )
+
+
 class EstimationPatch(BaseModel):
     project_name: Optional[str] = None
     timeline_weeks: Optional[float] = None
@@ -246,6 +273,8 @@ async def patch_estimation(
             est.grand_total = payload.grand_total
 
         if payload.status is not None and est.status != payload.status:
+            if payload.status == "Approved":
+                _require_complete_client(est.client)
             changes["status"] = {"before": est.status, "after": payload.status}
             est.status = payload.status
 

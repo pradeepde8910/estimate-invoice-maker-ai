@@ -54,6 +54,26 @@ export default {
       boxShadow: {
         card: '0 1px 2px 0 rgba(11, 40, 25, 0.04), 0 8px 24px -8px rgba(11, 40, 25, 0.08)',
       },
+      keyframes: {
+        'download-drop': {
+          '0%': { transform: 'translateY(-40%)', opacity: '0' },
+          '30%': { transform: 'translateY(0)', opacity: '1' },
+          '60%': { transform: 'translateY(0)', opacity: '1' },
+          '100%': { transform: 'translateY(40%)', opacity: '0' },
+        },
+        'shimmer': {
+          '100%': { transform: 'translateX(100%)' }
+        },
+        'pop-in': {
+          '0%': { transform: 'scale(0.4)', opacity: '0' },
+          '60%': { transform: 'scale(1.15)', opacity: '1' },
+          '100%': { transform: 'scale(1)', opacity: '1' },
+        },
+      },
+      animation: {
+        'download-drop': 'download-drop 1s ease-in-out infinite',
+        'pop-in': 'pop-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
+      },
     },
   },
   plugins: [typography],

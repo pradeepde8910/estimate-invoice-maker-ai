@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate, useBlocker } from 'react-router-dom'
+import { useLocation, useNavigate, useBlocker } from 'react-router-dom'
+import toast from 'react-hot-toast'
 import Topbar from '../components/Topbar'
 import Card from '../components/Card'
 import { getOrganization, updateOrganization, uploadOrganizationAsset, deleteOrganizationAsset, applyBrandingHistory } from '../api/client'
 import ConfirmModal from '../components/ConfirmModal'
+import LoadingState from '../components/LoadingState'
 import type { OrganizationProfile } from '../api/types'
 import { refreshLogo } from '../hooks/useLogo'
 
@@ -84,7 +86,6 @@ export default function OrganizationSettings() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [bankExpanded, setBankExpanded] = useState(false)
   const [removeConfirm, setRemoveConfirm] = useState<AssetSlotKey | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof OrganizationProfile, string>>>({})
@@ -92,6 +93,12 @@ export default function OrganizationSettings() {
   const [pendingAssets, setPendingAssets] = useState<Partial<Record<AssetSlotKey, File | null>>>({})
   const [pendingAssetUrls, setPendingAssetUrls] = useState<Partial<Record<AssetSlotKey, string>>>({})
   const navigate = useNavigate()
+  const location = useLocation()
+  // Only a genuine drill-in from Home (the standalone /organization route,
+  // rendered with no sidebar) needs a way back — reached via the Estimation
+  // or Invoice workspace sidebar instead, this page is itself one of that
+  // sidebar's top-level destinations, so a back button there is redundant.
+  const isStandaloneRoute = location.pathname === '/organization'
   const [showBackConfirm, setShowBackConfirm] = useState(false)
 
   const blocker = useBlocker(
@@ -129,7 +136,7 @@ export default function OrganizationSettings() {
           setBankExpanded(true)
         }
       })
-      .catch((e) => setError(e.message))
+      .catch((e) => toast.error(e.message))
   }, [])
 
   async function save(navigateAfterSuccess = false) {
@@ -145,12 +152,11 @@ export default function OrganizationSettings() {
     }
     setFieldErrors(errors)
     if (Object.keys(errors).length > 0) {
-      setError('Please fix the highlighted fields before saving.')
+      toast.error('Please fix the highlighted fields before saving.')
       window.scrollTo({ top: 0, behavior: 'smooth' })
       return false
     }
     setSaving(true)
-    setError(null)
     try {
       let updatedProfile = { ...profile }
       for (const slot of ['logo', 'signature', 'seal'] as AssetSlotKey[]) {
@@ -187,7 +193,7 @@ export default function OrganizationSettings() {
       }
       return true
     } catch (e: any) {
-      setError(e.message)
+      toast.error(e.message)
       return false
     } finally {
       setSaving(false)
@@ -199,7 +205,6 @@ export default function OrganizationSettings() {
     setProfile(savedProfile)
     setSaved(false)
     setIsDirty(false)
-    setError(null)
     setFieldErrors({})
     Object.values(pendingAssetUrls).forEach(url => { if (url && url.startsWith('blob:')) URL.revokeObjectURL(url) })
     setPendingAssets({})
@@ -229,18 +234,16 @@ export default function OrganizationSettings() {
 
   return (
     <div className="flex-1 bg-transparent min-h-screen">
-      <Topbar showBack title="Organization Settings" subtitle="Branding shown on every generated document — quotation, BRD, SRS, and invoice." />
-      <div className="p-8 max-w-3xl space-y-6">
-        {error && <div className="text-sm text-coral-600 bg-coral-50 rounded-2xl px-4 py-3">{error}</div>}
-
+      <Topbar showBack={isStandaloneRoute} title="Organization Settings" subtitle="Branding shown on every generated document — quotation, BRD, SRS, and invoice." />
+      <div className="p-4 sm:p-8 max-w-3xl space-y-6">
         {!profile ? (
-          <p className="text-sm text-slate-400">Loading…</p>
+          <LoadingState />
         ) : (
           <>
             <Card
               title="Company Details"
               action={
-                <div className="flex items-center gap-3">
+                <div className="flex items-center flex-wrap gap-x-3 gap-y-2">
                   {saved && !isDirty && <span className="text-xs text-brand-600 font-medium">Saved ✓</span>}
                   {isDirty && (
                     <button
@@ -260,9 +263,9 @@ export default function OrganizationSettings() {
                 </div>
               }
             >
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {FIELD_ROWS.map((f) => (
-                  <div key={f.key} className={f.span ? 'col-span-2' : ''}>
+                  <div key={f.key} className={f.span ? 'sm:col-span-2' : ''}>
                     <label className="text-xs font-medium text-slate-500">
                       {f.label}
                       {f.required && <span className="text-coral-600 ml-0.5">*</span>}
@@ -345,7 +348,7 @@ export default function OrganizationSettings() {
               }
             >
               {bankExpanded ? (
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {BANK_FIELD_ROWS.map((f) => (
                     <div key={f.key}>
                       <label className="text-xs font-medium text-slate-500">{f.label}</label>
@@ -398,7 +401,7 @@ export default function OrganizationSettings() {
             </Card>
 
             <Card title="Branding Assets">
-              <div className="grid grid-cols-3 gap-5">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
                 <AssetSlot
                   label="Logo"
                   src={pendingAssets.logo === null ? null : (pendingAssetUrls.logo || (profile.logo_path ? `/branding/${profile.logo_path}?t=${Date.now()}` : null))}

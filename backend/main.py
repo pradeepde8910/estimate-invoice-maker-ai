@@ -25,6 +25,7 @@ app.add_middleware(
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Row-Count"],
 )
 
 app.mount("/branding", StaticFiles(directory=str(organization.BRANDING_DIR)), name="branding")

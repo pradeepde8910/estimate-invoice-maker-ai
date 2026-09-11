@@ -301,6 +301,10 @@ export async function downloadInvoiceStatement(
   if (!res.ok) {
     await throwApiError(res)
   }
+  const rowCount = res.headers.get('X-Row-Count')
+  if (rowCount !== null && Number(rowCount) === 0) {
+    throw new ApiError(200, 'No invoices match this date range — nothing to download.')
+  }
   const blob = await res.blob()
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
@@ -330,6 +334,10 @@ export async function downloadProjectStatement(opts: {
   })
   if (!res.ok) {
     await throwApiError(res)
+  }
+  const rowCount = res.headers.get('X-Row-Count')
+  if (rowCount !== null && Number(rowCount) === 0) {
+    throw new ApiError(200, 'No projects match the selected filters — nothing to download.')
   }
   const blob = await res.blob()
   const url = URL.createObjectURL(blob)
@@ -374,6 +382,14 @@ export async function exportReport(
   })
   if (!res.ok) {
     await throwApiError(res)
+  }
+  // The file itself (PDF cover page, Excel header row, ...) is never zero
+  // bytes even when no rows matched the filters, so a blob-size check alone
+  // can't catch a "successful" but empty export — rely on the row count the
+  // backend reports instead, and refuse to hand the user a file with nothing in it.
+  const rowCount = res.headers.get('X-Row-Count')
+  if (rowCount !== null && Number(rowCount) === 0) {
+    throw new ApiError(200, 'No records match the selected filters — nothing to download.')
   }
   const blob = await res.blob()
   if (blob.size === 0) {
@@ -642,8 +658,11 @@ export async function convertEstimationToProject(estimationId: string): Promise<
 }
 
 // --- Billing Classifications ---
+// active_only=false so the admin management screen can see (and re-enable)
+// disabled classifications too — unlike the invoice line-item picker, which
+// should only ever offer active ones.
 export async function listBillingClassifications(): Promise<any[]> {
-  const res = await fetch(`${BASE}/master/billing-classifications`);
+  const res = await fetch(`${BASE}/master/billing-classifications?active_only=false`);
   return json<any[]>(res);
 }
 

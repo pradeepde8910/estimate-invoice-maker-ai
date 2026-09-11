@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import toast from 'react-hot-toast'
 import Topbar from '../components/Topbar'
 import Card from '../components/Card'
 import EstimationResult from '../components/EstimationResult'
 import ClientDetailsEditor from '../components/ClientDetailsEditor'
+import LoadingState from '../components/LoadingState'
 import { getEstimationData, convertEstimationToProject, patchEstimation } from '../api/client'
 import type { JobResult } from '../api/types'
 
@@ -49,6 +51,25 @@ function toJobResult(data: any): JobResult {
   }
 }
 
+// Approving is what unlocks project conversion, so every client field is
+// required at that point — not just the bare minimum (Company/Contact) that
+// ClientDetailsEditor accepts for "Confirm Identity".
+const CLIENT_REQUIRED_FOR_APPROVAL: { field: keyof NonNullable<JobResult['client_info']>; label: string }[] = [
+  { field: 'company_name', label: 'Company / Organization Name' },
+  { field: 'contact_person', label: 'Contact Person' },
+  { field: 'email', label: 'Email' },
+  { field: 'phone', label: 'Phone' },
+  { field: 'gstin', label: 'GSTIN / Tax ID' },
+  { field: 'billing_address', label: 'Billing Address' },
+]
+
+function missingClientFields(clientInfo: JobResult['client_info']): string[] {
+  if (!clientInfo || clientInfo.status !== 'CONFIRMED') {
+    return CLIENT_REQUIRED_FOR_APPROVAL.map((f) => f.label)
+  }
+  return CLIENT_REQUIRED_FOR_APPROVAL.filter((f) => !String(clientInfo[f.field] || '').trim()).map((f) => f.label)
+}
+
 export default function EstimationDetail() {
   const { baseName } = useParams<{ baseName: string }>()
   const [result, setResult] = useState<JobResult | null>(null)
@@ -58,21 +79,37 @@ export default function EstimationDetail() {
 
   const handleStatusChange = async (newStatus: string) => {
     if (!baseName || !result) return
+    if (newStatus === 'Approved') {
+      const missing = missingClientFields(result.client_info)
+      if (missing.length > 0) {
+        toast.error(`Complete the client's ${missing.join(', ')} before approving this estimation.`, { duration: 6000 })
+        document.getElementById('client-details-editor')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        return
+      }
+    }
     try {
       const res = await patchEstimation(baseName, { status: newStatus, version: result.version || 0 })
       setResult(prev => prev ? { ...prev, status: newStatus, version: res.version } : prev)
     } catch (e: any) {
+      toast.error(e.message, { duration: 6000 })
       setError(e.message)
     }
   }
 
   const handleConvert = async () => {
-    if (!baseName) return
+    if (!baseName || !result) return
+    const missing = missingClientFields(result.client_info)
+    if (missing.length > 0) {
+      toast.error(`Complete the client's ${missing.join(', ')} before converting this estimation to a project.`, { duration: 6000 })
+      document.getElementById('client-details-editor')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      return
+    }
     setIsConverting(true)
     try {
       const res = await convertEstimationToProject(baseName)
       navigate(`/invoice/projects/${res.project_id}`)
     } catch (e: any) {
+      toast.error(e.message, { duration: 6000 })
       setError(e.message)
       setIsConverting(false)
     }
@@ -94,6 +131,7 @@ export default function EstimationDetail() {
               <button
                 onClick={handleConvert}
                 disabled={isConverting}
+                title={result.client_info?.status !== 'CONFIRMED' ? 'Client details must be confirmed first' : undefined}
                 className="px-4 py-2 bg-brand-600 text-white rounded-full text-sm font-semibold hover:bg-brand-700 transition-colors disabled:opacity-50"
               >
                 {isConverting ? 'Converting...' : 'Convert to Project'}
@@ -126,15 +164,17 @@ export default function EstimationDetail() {
           </>
         )}
       </Topbar>
-      <div className="p-8">
+      <div className="p-4 sm:p-8">
         {error && <Card className="text-sm text-coral-600 bg-coral-50">{error}</Card>}
-        {!result && !error && <p className="text-sm text-slate-400">Loading…</p>}
+        {!result && !error && <LoadingState />}
         {result && baseName && !result.converted_project_id && (
-          <ClientDetailsEditor 
-            baseName={baseName} 
-            clientInfo={result.client_info} 
-            onSaved={(newInfo) => setResult(prev => prev ? { ...prev, client_info: newInfo } : prev)} 
-          />
+          <div id="client-details-editor">
+            <ClientDetailsEditor
+              baseName={baseName}
+              clientInfo={result.client_info}
+              onSaved={(newInfo) => setResult(prev => prev ? { ...prev, client_info: newInfo } : prev)}
+            />
+          </div>
         )}
         {result && baseName && <EstimationResult result={result} docSource="base" docId={baseName} baseName={baseName} />}
       </div>

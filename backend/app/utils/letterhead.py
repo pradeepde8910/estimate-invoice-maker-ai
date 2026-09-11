@@ -8,7 +8,20 @@ still renders cleanly when converted to PDF.
 
 from __future__ import annotations
 
+import re
+
 from app.utils.organization import branding_url
+
+
+def _hard_break_join(items: list[str]) -> str:
+    """
+    Joins already-formatted lines with a markdown hard break (two trailing
+    spaces + newline) so each stays on its own visual line regardless of
+    renderer — plain consecutive lines with no blank line between them are
+    CommonMark for "one wrapped paragraph", which is exactly the bug this
+    letterhead used to have.
+    """
+    return "  \n".join(items)
 
 
 def build_letterhead_markdown(profile: dict) -> str:
@@ -17,19 +30,45 @@ def build_letterhead_markdown(profile: dict) -> str:
     if logo_url:
         lines.append(f"![{profile.get('name', 'Logo')}]({logo_url})")
         lines.append("")
+
+    lines.append("**ORGANIZATION DETAILS**")
+    lines.append("")
     lines.append(f"# {profile.get('name', 'Your Company')}")
-    contact_bits = [b for b in [profile.get("address"), profile.get("phone"), profile.get("email")] if b]
-    if contact_bits:
-        lines.append(" · ".join(contact_bits))
-    meta_bits = []
+
+    # The address field is a free-form textarea (see OrganizationSettings),
+    # so it may already contain manually entered line breaks — preserve
+    # those as hard breaks rather than only ever relying on the renderer's
+    # own soft-wrap for a single long line.
+    address = (profile.get("address") or "").strip()
+    if address:
+        address_lines = [ln.strip() for ln in address.splitlines() if ln.strip()]
+        if address_lines:
+            lines.append(_hard_break_join(address_lines))
+
+    contact_lines = []
+    if profile.get("phone"):
+        contact_lines.append(f"Phone: {profile['phone']}")
+    if profile.get("email"):
+        contact_lines.append(f"Email: {profile['email']}")
     if profile.get("website"):
-        meta_bits.append(profile["website"])
+        website = profile["website"]
+        display = re.sub(r"^https?://", "", website)
+        contact_lines.append(f"Website: [{display}]({website})")
+    if contact_lines:
+        lines.append("")
+        lines.append("**Contact Information**  ")
+        lines.append(_hard_break_join(contact_lines))
+
+    statutory_lines = []
     if profile.get("gstin"):
-        meta_bits.append(f"GSTIN: {profile['gstin']}")
+        statutory_lines.append(f"GSTIN: {profile['gstin']}")
     if profile.get("registration_number"):
-        meta_bits.append(f"Reg. No: {profile['registration_number']}")
-    if meta_bits:
-        lines.append(" · ".join(meta_bits))
+        statutory_lines.append(f"Reg. No: {profile['registration_number']}")
+    if statutory_lines:
+        lines.append("")
+        lines.append("**Statutory Information**  ")
+        lines.append(_hard_break_join(statutory_lines))
+
     lines.append("")
     lines.append("---")
     lines.append("")

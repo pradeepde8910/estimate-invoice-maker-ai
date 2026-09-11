@@ -192,6 +192,7 @@ async def analysis_node(state: PipelineState) -> dict:
                 chunks.append(document_text[i:i + chunk_size])
         
         merged_analysis = {
+            "client": {},
             "client_name": "Unspecified Client",
             "project_name": "Unknown",
             "project_description": "",
@@ -230,7 +231,23 @@ Extract the complete project analysis as structured JSON."""
         
         for i, analysis in sorted(results, key=lambda x: x[0]):
             if i == 0:
-                merged_analysis["client_name"] = analysis.get("client_name", merged_analysis["client_name"]) or merged_analysis["client_name"]
+                # The LLM returns client identity nested under "client" (per
+                # ANALYSIS_SYSTEM_PROMPT's schema) — there is no top-level
+                # "client_name" key in its response, so reading one here (as
+                # this used to) always missed and silently fell back to
+                # "Unspecified Client" even when the document clearly named
+                # a company. Only chunk 0 is trusted for this, same as the
+                # other project-level fields below — client identity is
+                # expected up front (cover page/letterhead), not scattered
+                # mid-document.
+                client_obj = analysis.get("client")
+                if isinstance(client_obj, dict):
+                    merged_analysis["client"] = client_obj
+                merged_analysis["client_name"] = (
+                    merged_analysis["client"].get("company_name")
+                    or merged_analysis["client"].get("contact_person")
+                    or merged_analysis["client_name"]
+                )
                 merged_analysis["project_name"] = analysis.get("project_name", merged_analysis["project_name"])
                 merged_analysis["project_description"] = analysis.get("project_description", "")
                 merged_analysis["project_type"] = analysis.get("project_type", merged_analysis["project_type"])

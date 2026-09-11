@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
+import toast from 'react-hot-toast'
 import Topbar from '../components/Topbar'
 import Card from '../components/Card'
 import ConfirmModal from '../components/ConfirmModal'
@@ -35,7 +36,6 @@ export default function InvoiceDetail() {
   const [generating, setGenerating] = useState(false)
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [pendingStatus, setPendingStatus] = useState<InvoiceStatus | null>(null)
   const [paymentAmount, setPaymentAmount] = useState<number>(0)
   const [paymentDate, setPaymentDate] = useState<string>(new Date().toISOString().split('T')[0])
@@ -43,7 +43,7 @@ export default function InvoiceDetail() {
 
   useEffect(() => {
     if (!baseName) return
-    getEstimationData(baseName).then(setEstimation).catch((e) => setError(e.message))
+    getEstimationData(baseName).then(setEstimation).catch((e) => toast.error(e.message))
     getInvoice(baseName)
       .then((r) => {
         setInvoiceHtml(r.invoice_html)
@@ -56,13 +56,12 @@ export default function InvoiceDetail() {
   async function handleGenerate() {
     if (!baseName) return
     setGenerating(true)
-    setError(null)
     try {
       const r = await generateInvoice(baseName, { tax_percentage: taxPct, due_days: dueDays })
       setInvoiceHtml(r.invoice_html)
       setInvoiceMeta(r.invoice_meta)
     } catch (e: any) {
-      setError(e.message || 'Failed to generate invoice')
+      toast.error(e.message || 'Failed to generate invoice')
     } finally {
       setGenerating(false)
     }
@@ -70,7 +69,6 @@ export default function InvoiceDetail() {
 
   async function handleStatusChange(status: InvoiceStatus) {
     if (!baseName) return
-    setError(null)
     try {
       let amt: number | undefined
       let dt: string | undefined
@@ -82,7 +80,7 @@ export default function InvoiceDetail() {
       setInvoiceMeta(r.invoice_meta)
       setInvoiceHtml(r.invoice_html)
     } catch (e: any) {
-      setError(e.message)
+      toast.error(e.message)
     }
   }
 
@@ -91,13 +89,12 @@ export default function InvoiceDetail() {
     const edited = frameRef.current?.getHtml()
     if (!edited) return
     setSaving(true)
-    setError(null)
     try {
       await updateDocumentContent(baseName, 'invoice', edited)
       setInvoiceHtml(edited)
       setEditing(false)
     } catch (e: any) {
-      setError(e.message)
+      toast.error(e.message)
     } finally {
       setSaving(false)
     }
@@ -123,9 +120,7 @@ export default function InvoiceDetail() {
   return (
     <div className="flex-1 bg-transparent min-h-screen">
       <Topbar showBack title="Invoice" subtitle={`${clientName} · ${projectName}`} />
-      <div className="p-8 max-w-4xl space-y-6">
-        {error && <div className="text-sm text-coral-600 bg-coral-50 rounded-2xl px-4 py-3">{error}</div>}
-
+      <div className="p-4 sm:p-8 max-w-4xl space-y-6">
         {!invoiceHtml && (
           <Card title="Generate Invoice">
             <div className="flex items-center justify-between text-sm text-slate-500 mb-4">
@@ -133,7 +128,7 @@ export default function InvoiceDetail() {
               <span className="font-semibold text-slate-800">{inr(grandTotal)}</span>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="text-sm font-medium text-slate-600">Tax (%)</label>
                 <input
@@ -174,7 +169,7 @@ export default function InvoiceDetail() {
 
         {invoiceHtml && (
           <>
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <span className="text-sm text-slate-500">Status</span>
                 <select
@@ -202,7 +197,7 @@ export default function InvoiceDetail() {
                   ))}
                 </select>
               </div>
-              <div className="flex gap-3">
+              <div className="flex flex-wrap gap-3">
                 <button
                   disabled={!isDraft}
                   onClick={() => setInvoiceHtml(null)}
@@ -243,7 +238,7 @@ export default function InvoiceDetail() {
                 </button>
                 {baseName && (
                   <button
-                    onClick={() => openDocumentPdf(baseName, 'invoice').catch((e: any) => setError(e.message))}
+                    onClick={() => openDocumentPdf(baseName, 'invoice').catch((e: any) => toast.error(e.message))}
                     className="text-sm font-medium bg-brand-600 hover:bg-brand-700 text-white px-5 py-2.5 rounded-full"
                   >
                     ⬇ PDF
@@ -274,7 +269,7 @@ export default function InvoiceDetail() {
                 : `You are about to mark this invoice as ${pendingStatus}.`}
             </p>
             {(pendingStatus === 'Paid' || pendingStatus === 'Partially Paid') && (
-              <div className="grid grid-cols-2 gap-4 mt-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1">Amount Paid (₹)</label>
                   <input

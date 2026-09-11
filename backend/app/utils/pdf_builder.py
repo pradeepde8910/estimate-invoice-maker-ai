@@ -162,8 +162,6 @@ def _ensure_blank_line_before_lists(text: str) -> str:
 
 
 def markdown_to_pdf(markdown_text: str) -> bytes:
-    from weasyprint import HTML
-
     markdown_text = _EMOJI_PATTERN.sub("", markdown_text)
     markdown_text = _MERMAID_BLOCK_PATTERN.sub(_MERMAID_PLACEHOLDER, markdown_text)
     markdown_text = _ensure_blank_line_before_lists(markdown_text)
@@ -182,7 +180,7 @@ def markdown_to_pdf(markdown_text: str) -> bytes:
     </body>
     </html>
     """
-    return HTML(string=html, base_url=str(BRANDING_DIR)).write_pdf()
+    return html_to_pdf(html)
 
 
 _WEB_FONT_LINK_PATTERN = re.compile(

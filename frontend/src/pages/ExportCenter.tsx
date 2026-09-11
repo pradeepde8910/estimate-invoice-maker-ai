@@ -40,7 +40,7 @@ const REPORT_CONFIGS: Record<ReportType, ReportConfig> = {
     hasProjectFilter: true,
     dateMode: 'range',
     dateLabel: 'Invoice Date',
-    statusOptions: ['DRAFT', 'ISSUED', 'CANCELLED'],
+    statusOptions: ['DRAFT', 'ISSUED'],
     hasBillingTypeFilter: false,
   },
   PAYMENT: {
@@ -208,7 +208,7 @@ export default function ExportCenter() {
   return (
     <div className="flex-1 bg-transparent min-h-screen">
       <Topbar showBack={false} title="Export Center" subtitle="Download any slice of your data — invoices, payments, outstanding balances, projects, or milestones." />
-      <div className="p-8 space-y-6 max-w-5xl mx-auto">
+      <div className="p-4 sm:p-8 space-y-6 max-w-5xl mx-auto">
 
         <Card className="!p-0 overflow-hidden">
           <div className="flex flex-wrap divide-x divide-slate-100 border-b border-slate-100">
@@ -288,6 +288,7 @@ export default function ExportCenter() {
                     type="date"
                     value={fromDate}
                     onChange={(e) => setFromDate(e.target.value)}
+                    max={todayInputValue()}
                     className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm"
                   />
                 </div>
@@ -297,6 +298,7 @@ export default function ExportCenter() {
                     type="date"
                     value={toDate}
                     onChange={(e) => setToDate(e.target.value)}
+                    max={todayInputValue()}
                     className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm"
                   />
                 </div>
@@ -310,6 +312,7 @@ export default function ExportCenter() {
                   type="date"
                   value={asOfDate}
                   onChange={(e) => setAsOfDate(e.target.value)}
+                  max={todayInputValue()}
                   className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm"
                 />
               </div>

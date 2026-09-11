@@ -1,18 +1,19 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import toast from 'react-hot-toast'
 import Topbar from '../components/Topbar'
 import Card from '../components/Card'
 import StatCard from '../components/StatCard'
 import HeroStat from '../components/HeroStat'
 import { inr, compactInr } from '../components/EstimationResult'
 import ConfirmModal from '../components/ConfirmModal'
+import LoadingState from '../components/LoadingState'
 import { getAnalytics, deleteEstimation } from '../api/client'
 import type { Analytics, DocumentSummary } from '../api/types'
 import { useJob } from '../JobContext'
 
 export default function EstimationDashboard() {
   const [data, setData] = useState<Analytics | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<DocumentSummary | null>(null)
   const [deleting, setDeleting] = useState(false)
   const navigate = useNavigate()
@@ -30,7 +31,7 @@ export default function EstimationDashboard() {
   function refresh() {
     getAnalytics()
       .then(setData)
-      .catch((e) => setError(e.message))
+      .catch((e) => toast.error(e.message))
   }
 
   useEffect(() => {
@@ -40,13 +41,12 @@ export default function EstimationDashboard() {
   async function handleDelete() {
     if (!deleteTarget) return
     setDeleting(true)
-    setError(null)
     try {
       await deleteEstimation(deleteTarget.base_name)
       setDeleteTarget(null)
       refresh()
     } catch (e: any) {
-      setError(e.message)
+      toast.error(e.message)
     } finally {
       setDeleting(false)
     }
@@ -70,8 +70,8 @@ export default function EstimationDashboard() {
 
   return (
     <div className="flex-1 bg-transparent min-h-screen">
-      <Topbar showBack title="Estimation Dashboard" subtitle="Overview of every estimation you've created." />
-      <div className="p-8 space-y-6">
+      <Topbar title="Estimation Dashboard" subtitle="Overview of every estimation you've created." />
+      <div className="p-4 sm:p-8 space-y-6">
         <div className="flex justify-end">
           <button
             onClick={goToNewEstimation}
@@ -81,9 +81,8 @@ export default function EstimationDashboard() {
           </button>
         </div>
 
-        {error && <div className="text-sm text-coral-600 bg-coral-50 rounded-2xl px-4 py-3">{error}</div>}
         {!data ? (
-          <p className="text-sm text-slate-400">Loading…</p>
+          <LoadingState />
         ) : (
           <>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
@@ -100,7 +99,7 @@ export default function EstimationDashboard() {
             <Card
               title="Recent Estimations"
               action={
-                <div className="flex items-center gap-4">
+                <div className="flex items-center flex-wrap gap-x-4 gap-y-2">
                   <button onClick={downloadCsv} className="text-xs font-medium text-brand-600 hover:underline">
                     ⬇ Download statement (CSV)
                   </button>
@@ -125,7 +124,7 @@ export default function EstimationDashboard() {
                     {data.recent.map((e) => (
                       <tr key={e.base_name} className="hover:bg-slate-50">
                         <td className="py-2.5 pr-4 text-slate-700">{e.client_name}</td>
-                        <td className="py-2.5 pr-4 text-slate-600 truncate max-w-[220px]">{e.project_name}</td>
+                        <td className="py-2.5 pr-4 text-slate-600 truncate max-w-[220px]" title={e.project_name}>{e.project_name}</td>
                         <td className="py-2.5 pr-4 font-medium text-slate-800 tabular-nums">
                           {e.grand_total != null ? inr(e.grand_total) : '—'}
                         </td>

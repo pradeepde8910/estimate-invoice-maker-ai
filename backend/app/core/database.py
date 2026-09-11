@@ -148,6 +148,20 @@ def _run_migrations():
             except Exception as e:
                 print(f"[migration] Note: audit_logs_user_id_fkey drop: {e}")
 
+            try:
+                # invoices.status no longer allows CANCELLED (invoice cancellation
+                # was removed as a feature) - tighten the constraint to match the
+                # current model so a stale, more permissive constraint from an
+                # existing database doesn't silently accept it again.
+                conn.execute(sa_text(
+                    "ALTER TABLE invoices DROP CONSTRAINT IF EXISTS chk_invoice_status"
+                ))
+                conn.execute(sa_text(
+                    "ALTER TABLE invoices ADD CONSTRAINT chk_invoice_status CHECK (status IN ('DRAFT', 'ISSUED'))"
+                ))
+            except Exception as e:
+                print(f"[migration] Note: chk_invoice_status tighten: {e}")
+
         migrations = [
             # organization_profiles: branding columns
             ("organization_profiles", "logo_path",       "VARCHAR(255)"),

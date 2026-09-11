@@ -77,7 +77,13 @@ def export_report(
             content=content,
             media_type=media_type,
             headers={
-                "Content-Disposition": f"attachment; filename={report_type.value.lower()}_report.{extension}"
+                "Content-Disposition": f"attachment; filename={report_type.value.lower()}_report.{extension}",
+                # Lets the frontend detect a filter combination that matched zero
+                # rows and refuse to hand the user a "successful" but empty
+                # file — the export itself (PDF/Excel headers, etc.) is never
+                # zero bytes even when there's no data, so blob size alone
+                # can't tell the two cases apart.
+                "X-Row-Count": str(len(dataset.rows)),
             }
         )
         

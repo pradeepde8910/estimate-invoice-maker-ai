@@ -130,7 +130,6 @@ def _group_items(items: list) -> list[dict]:
 # conflated "Draft/Sent/Paid/..." label the old renderer used.
 _STATUS_BADGE = {
     "ISSUED": ("#DBEAFE", "#1E40AF"),
-    "CANCELLED": ("#FFE4E1", "#BE123C"),
     "DRAFT": ("#E2E8F0", "#334155"),
 }
 _PAYMENT_BADGE = {

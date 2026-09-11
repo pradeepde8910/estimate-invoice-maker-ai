@@ -4,19 +4,30 @@ import Topbar from '../components/Topbar'
 import Card from '../components/Card'
 import ConfirmModal from '../components/ConfirmModal'
 import RecordPaymentModal from '../components/RecordPaymentModal'
+import LoadingState from '../components/LoadingState'
 import { getProjectSummary, listInvoices, updateInvoiceStatusV2, downloadInvoiceStatement } from '../api/client'
 
-function currentMonthValue(): string {
-  const now = new Date()
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+const STATEMENT_MAX_MONTHS = 6
+
+function toDateInputValue(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-function monthToDateRange(monthValue: string): { from: string; to: string } {
-  const [year, month] = monthValue.split('-').map(Number)
-  const from = `${year}-${String(month).padStart(2, '0')}-01`
-  const lastDay = new Date(year, month, 0).getDate()
-  const to = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
-  return { from, to }
+function firstDayOfCurrentMonth(): string {
+  const now = new Date()
+  return toDateInputValue(new Date(now.getFullYear(), now.getMonth(), 1))
+}
+
+function today(): string {
+  return toDateInputValue(new Date())
+}
+
+// Same calendar day N months later/earlier as `dateValue` (YYYY-MM-DD) — used
+// to clamp the statement range to STATEMENT_MAX_MONTHS without letting the
+// two date inputs drift into an invalid (or unboundedly large) range.
+function shiftMonths(dateValue: string, months: number): string {
+  const [y, m, d] = dateValue.split('-').map(Number)
+  return toDateInputValue(new Date(y, m - 1 + months, d))
 }
 
 function paymentStatusBadge(status: string) {
@@ -35,7 +46,8 @@ export default function ProjectDetail() {
   const [invoices, setInvoices] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [statementMonth, setStatementMonth] = useState(currentMonthValue())
+  const [statementFrom, setStatementFrom] = useState(firstDayOfCurrentMonth())
+  const [statementTo, setStatementTo] = useState(today())
   const [statementFormat, setStatementFormat] = useState<'pdf' | 'excel' | 'csv'>('pdf')
   const [downloadingStatement, setDownloadingStatement] = useState(false)
   const [success, setSuccess] = useState<string | null>(null)
@@ -56,13 +68,30 @@ export default function ProjectDetail() {
     }).catch(() => setLoading(false))
   }
 
+  function handleStatementFromChange(value: string) {
+    setStatementFrom(value)
+    if (value > statementTo) {
+      setStatementTo(value)
+    } else if (statementTo > shiftMonths(value, STATEMENT_MAX_MONTHS)) {
+      setStatementTo(shiftMonths(value, STATEMENT_MAX_MONTHS))
+    }
+  }
+
+  function handleStatementToChange(value: string) {
+    setStatementTo(value)
+    if (value < statementFrom) {
+      setStatementFrom(value)
+    } else if (statementFrom < shiftMonths(value, -STATEMENT_MAX_MONTHS)) {
+      setStatementFrom(shiftMonths(value, -STATEMENT_MAX_MONTHS))
+    }
+  }
+
   async function handleDownloadStatement() {
     if (!projectId) return
-    const { from, to } = monthToDateRange(statementMonth)
     setDownloadingStatement(true)
     setError(null)
     try {
-      await downloadInvoiceStatement(from, to, { projectId, format: statementFormat })
+      await downloadInvoiceStatement(statementFrom, statementTo, { projectId, format: statementFormat })
     } catch (e: any) {
       setError(e.message || 'Failed to download statement')
     } finally {
@@ -96,13 +125,13 @@ export default function ProjectDetail() {
     return () => clearTimeout(t)
   }, [success])
 
-  if (loading) return <div className="p-8 text-center text-slate-500">Loading project details...</div>
+  if (loading) return <LoadingState label="Loading project details…" className="min-h-screen py-8" />
   if (!summary) return <div className="p-8 text-center text-red-500">Failed to load project.</div>
 
   return (
     <div className="flex-1 bg-transparent min-h-screen">
       <Topbar showBack title={summary.project_name} subtitle={`Project No: ${summary.project_number}`} />
-      <div className="p-8 space-y-6 max-w-6xl mx-auto">
+      <div className="p-4 sm:p-8 space-y-6 max-w-6xl mx-auto">
         
         {error && <div className="p-4 bg-coral-50 text-coral-600 rounded-lg">{error}</div>}
         {success && <div className="p-4 bg-brand-50 text-brand-700 rounded-lg">{success}</div>}
@@ -171,17 +200,46 @@ export default function ProjectDetail() {
         <Card title="Invoices">
           <div className="flex justify-between items-center mb-4 flex-wrap gap-3">
             <h3 className="text-sm font-medium text-slate-700">All Invoices</h3>
-            <div className="flex items-center gap-2">
-              <input
-                type="month"
-                value={statementMonth}
-                onChange={(e) => setStatementMonth(e.target.value)}
-                className="text-xs border border-slate-200 rounded-lg px-2 py-1.5"
-              />
+            <button
+              onClick={() => navigate(`/invoice/projects/${projectId}/new-invoice`)}
+              className="text-xs font-medium bg-brand-50 text-brand-700 px-3 py-1.5 rounded-full hover:bg-brand-100"
+            >
+              + Create Invoice
+            </button>
+          </div>
+
+          <div className="mb-4 bg-slate-50 border border-slate-100 rounded-xl px-3 py-2.5">
+            <div className="flex items-center justify-between flex-wrap gap-y-1 mb-2">
+              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
+                Download Invoice Statement (this project only)
+              </span>
+              <span className="text-[11px] text-slate-400">Period can span up to {STATEMENT_MAX_MONTHS} months</span>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap gap-y-2">
+              <div className="flex items-center gap-1.5">
+                <label className="text-[11px] text-slate-500">From</label>
+                <input
+                  type="date"
+                  value={statementFrom}
+                  max={statementTo}
+                  onChange={(e) => handleStatementFromChange(e.target.value)}
+                  className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white"
+                />
+              </div>
+              <div className="flex items-center gap-1.5">
+                <label className="text-[11px] text-slate-500">To</label>
+                <input
+                  type="date"
+                  value={statementTo}
+                  min={statementFrom}
+                  onChange={(e) => handleStatementToChange(e.target.value)}
+                  className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white"
+                />
+              </div>
               <select
                 value={statementFormat}
                 onChange={(e) => setStatementFormat(e.target.value as 'pdf' | 'excel' | 'csv')}
-                className="text-xs border border-slate-200 rounded-lg px-2 py-1.5"
+                className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white"
               >
                 <option value="pdf">PDF</option>
                 <option value="excel">Excel</option>
@@ -190,16 +248,10 @@ export default function ProjectDetail() {
               <button
                 onClick={handleDownloadStatement}
                 disabled={downloadingStatement}
-                title="Download a combined statement of every invoice raised in this project during the selected month"
+                title="Download a combined statement of every invoice raised in this project during the selected date range"
                 className="text-xs font-medium bg-white border border-slate-200 text-slate-700 px-3 py-1.5 rounded-full hover:bg-slate-50 disabled:opacity-50"
               >
-                {downloadingStatement ? 'Preparing…' : 'Download Monthly Statement'}
-              </button>
-              <button
-                onClick={() => navigate(`/invoice/projects/${projectId}/new-invoice`)}
-                className="text-xs font-medium bg-brand-50 text-brand-700 px-3 py-1.5 rounded-full hover:bg-brand-100"
-              >
-                + Create Invoice
+                {downloadingStatement ? 'Preparing…' : 'Download Statement'}
               </button>
             </div>
           </div>
@@ -247,7 +299,6 @@ export default function ProjectDetail() {
                       <div className="flex flex-col gap-1 items-start">
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                           inv.status === 'ISSUED' ? 'bg-blue-50 text-blue-700' :
-                          inv.status === 'CANCELLED' ? 'bg-coral-50 text-coral-600' :
                           'bg-slate-100 text-slate-600'
                         }`}>
                           {inv.status}

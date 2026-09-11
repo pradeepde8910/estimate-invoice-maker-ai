@@ -58,7 +58,7 @@ export default function DonutChart({
   }
 
   return (
-    <div className={`flex ${layout === 'vertical' ? 'flex-col' : 'flex-row items-start'} gap-6`}>
+    <div className={`flex flex-col ${layout === 'vertical' ? '' : 'sm:flex-row sm:items-start'} gap-6`}>
       <div className="flex flex-col items-center mx-auto">
         <div className="relative w-40 h-40 shrink-0">
           <ResponsiveContainer width="100%" height="100%">

@@ -9,7 +9,6 @@ from app.models.invoice import InvoiceSequence, Invoice, InvoiceItem, InvoiceTax
 from app.models.project import Project, ProjectMilestone, ProjectBillingConfig
 from app.models.master import Client, BillingClassification, TaxRate
 from app.models.audit import AuditLog
-from app.models.payment import Payment
 
 from app.services.billing_service import validate_billing_ceiling, calculate_percentage_billing, calculate_invoice_financials
 from app.services.tax_service import calculate_gst, calculate_tds
@@ -508,39 +507,9 @@ def transition_invoice_status(session: Session, invoice_id: str, new_status: str
             raise ValueError("Invoice not found")
 
         old_status = invoice.status
-        
-        # State map logic
-        if old_status == "CANCELLED":
-            raise InvalidStateTransitionError("Cannot transition from CANCELLED state")
-        
+
         if old_status == "ISSUED" and new_status == "DRAFT":
             raise InvalidStateTransitionError("Cannot transition from ISSUED to DRAFT")
-    
-        if new_status == "CANCELLED":
-            # Check for successful payments
-            success_payment = session.query(Payment).filter(
-                Payment.invoice_id == invoice.id,
-                Payment.status == "SUCCESS"
-            ).first()
-            if success_payment:
-                raise InvalidStateTransitionError("Cannot cancel an invoice that has successful payments.")
-                
-            # Revert milestone
-            if invoice.milestone_id:
-                milestone = session.query(ProjectMilestone).filter_by(id=invoice.milestone_id).first()
-                if milestone:
-                    milestone.status = "PENDING"
-            
-            # Log cancellation
-            audit = AuditLog(
-                action="INVOICE_CANCELLED",
-                details=json.dumps({
-                    "entity_type": "INVOICE",
-                    "entity_id": invoice.id,
-                    "message": f"Invoice {invoice.invoice_number} cancelled.",
-                }),
-            )
-            session.add(audit)
 
         invoice.status = new_status
         session.commit()

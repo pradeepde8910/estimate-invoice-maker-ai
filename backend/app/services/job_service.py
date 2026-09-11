@@ -51,6 +51,28 @@ STEP_INDEX = {s["done_stage"]: i for i, s in enumerate(STEPS)}
 
 JOBS: dict[str, dict] = {}
 
+# How long a finished (complete/failed/cancelled) job stays in JOBS after it
+# stops changing. Without this, JOBS grows forever — every job's full
+# pipeline state (every generated document, requirement, cost breakdown,
+# web search result) stayed in memory for the lifetime of the server
+# process, since nothing ever removed a job once it was created. By the time
+# a job is this old, its estimation (if any) is already durably saved in the
+# database — the UI reads completed estimations from there via `base_name`,
+# not from this in-memory registry — so pruning it here loses nothing.
+JOB_RETENTION_SECONDS = 2 * 60 * 60
+
+
+def _prune_stale_jobs() -> None:
+    now = time.time()
+    stale_ids = [
+        job_id
+        for job_id, job in JOBS.items()
+        if job.get("status") in ("complete", "failed", "cancelled")
+        and now - job.get("completed_at", now) > JOB_RETENTION_SECONDS
+    ]
+    for job_id in stale_ids:
+        JOBS.pop(job_id, None)
+
 
 def _sanitize_filename(name: str) -> str:
     safe = re.sub(r"[^\w\s-]", "", name).strip()
@@ -117,6 +139,7 @@ async def _run_job(job_id: str, raw_input: str, generate_brd: bool, generate_srs
                 job["status"] = "failed"
                 job["error"] = "; ".join(update.get("errors", [])) or f"Failed at {stage}"
                 job["log"] = update.get("log", [])
+                job["completed_at"] = time.time()
                 return
             job["log"] = update.get("log", [])
 
@@ -213,12 +236,14 @@ async def _run_job(job_id: str, raw_input: str, generate_brd: bool, generate_srs
             job["error"] = f"Failed to save estimation to database: {db_err}"
         finally:
             db.close()
+            job["completed_at"] = time.time()
 
         job["base_name"] = base_name
 
     except Exception as e:
         job["status"] = "failed"
         job["error"] = str(e)
+        job["completed_at"] = time.time()
 
 
 async def create_job(
@@ -231,9 +256,11 @@ async def create_job(
     raw_input: Optional[str] = None
 
     if file is not None:
+        content = await file.read()
+        if len(content) > 5 * 1024 * 1024:
+            raise HTTPException(status_code=400, detail="File size must be less than 5MB")
         suffix = Path(file.filename or "upload").suffix or ".txt"
         dest = UPLOAD_DIR / f"{uuid.uuid4().hex}{suffix}"
-        content = await file.read()
         dest.write_bytes(content)
         raw_input = str(dest.resolve())
     elif url:
@@ -244,6 +271,8 @@ async def create_job(
     if not raw_input:
         raise HTTPException(400, "Provide a file, url, or text.")
 
+    _prune_stale_jobs()
+
     job_id = uuid.uuid4().hex
     JOBS[job_id] = {
         "id": job_id,
@@ -252,7 +281,10 @@ async def create_job(
         "steps": [s["label"] for s in STEPS],
         "log": [],
         "error": None,
-        "source_name": file.filename if file else (url or (text[:60] if text else "")),
+        # A pasted-text submission has no natural short name — unlike a
+        # filename or URL, dumping the raw (possibly long, messy) text back
+        # at the user as if it were a "name" reads as garbled nonsense.
+        "source_name": file.filename if file else (url or ("Pasted requirement text" if text else "")),
         "created_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
     job_task = asyncio.create_task(_run_job(job_id, raw_input, generate_brd, generate_srs))
@@ -341,6 +373,7 @@ def cancel_job(job_id: str) -> dict:
 
     job["status"] = "cancelled"
     job["error"] = "Cancelled by user"
+    job["completed_at"] = time.time()
     return {"status": "cancelled"}
 
 

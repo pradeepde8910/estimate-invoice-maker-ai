@@ -1,31 +1,36 @@
+import { lazy, Suspense } from 'react'
 import { createBrowserRouter, createRoutesFromElements, Route, RouterProvider } from 'react-router-dom'
-import Home from './pages/Home'
-import EstimationLayout from './components/EstimationLayout'
-import InvoiceLayout from './components/InvoiceLayout'
-import EstimationDashboard from './pages/EstimationDashboard'
-import NewEstimation from './pages/NewEstimation'
-import EstimationList from './pages/EstimationList'
-import EstimationDetail from './pages/EstimationDetail'
-import InvoiceDashboard from './pages/InvoiceDashboard'
-import NewInvoice from './pages/NewInvoice'
-import InvoiceHistory from './pages/InvoiceHistory'
-import InvoiceDetail from './pages/InvoiceDetail'
-import RateCardPage from './pages/RateCard'
-import OrganizationSettings from './pages/OrganizationSettings'
-import DocumentView from './pages/DocumentView'
-import Login from './pages/Login'
 import ProtectedRoute from './components/ProtectedRoute'
 import { JobProvider } from './JobContext'
 import ErrorBoundary from './components/ErrorBoundary'
-import Projects from './pages/Projects'
-import ProjectDetail from './pages/ProjectDetail'
-import NewInvoiceV2 from './pages/NewInvoiceV2'
-import InvoiceViewV2 from './pages/InvoiceViewV2'
-import NewStandaloneInvoice from './pages/NewStandaloneInvoice'
-import ExportCenter from './pages/ExportCenter'
+import PageFallback from './components/PageFallback'
 
-import { BillingClassifications } from './pages/admin/BillingClassifications'
-import ResourceCatalog from './pages/admin/ResourceCatalog'
+// Route-level code splitting: each page (and whatever heavy library it
+// alone needs — the rich-text editor, Mermaid, recharts, ...) is only
+// fetched when its route is actually visited, instead of every one of
+// them loading eagerly on first paint regardless of which page (even
+// just /login) the browser lands on first.
+const Home = lazy(() => import('./pages/Home'))
+const EstimationLayout = lazy(() => import('./components/EstimationLayout'))
+const InvoiceLayout = lazy(() => import('./components/InvoiceLayout'))
+const EstimationDashboard = lazy(() => import('./pages/EstimationDashboard'))
+const NewEstimation = lazy(() => import('./pages/NewEstimation'))
+const EstimationList = lazy(() => import('./pages/EstimationList'))
+const EstimationDetail = lazy(() => import('./pages/EstimationDetail'))
+const RateCardPage = lazy(() => import('./pages/RateCard'))
+const OrganizationSettings = lazy(() => import('./pages/OrganizationSettings'))
+const DocumentView = lazy(() => import('./pages/DocumentView'))
+const Login = lazy(() => import('./pages/Login'))
+const Projects = lazy(() => import('./pages/Projects'))
+const ProjectDetail = lazy(() => import('./pages/ProjectDetail'))
+const NewInvoiceV2 = lazy(() => import('./pages/NewInvoiceV2'))
+const InvoiceViewV2 = lazy(() => import('./pages/InvoiceViewV2'))
+const NewStandaloneInvoice = lazy(() => import('./pages/NewStandaloneInvoice'))
+const ExportCenter = lazy(() => import('./pages/ExportCenter'))
+const ResourceCatalog = lazy(() => import('./pages/admin/ResourceCatalog'))
+const BillingClassifications = lazy(() =>
+  import('./pages/admin/BillingClassifications').then((m) => ({ default: m.BillingClassifications }))
+)
 
 const router = createBrowserRouter(
   createRoutesFromElements(
@@ -34,6 +39,7 @@ const router = createBrowserRouter(
 
       <Route element={<ProtectedRoute />}>
         <Route path="/" element={<Home />} />
+        <Route path="/organization" element={<OrganizationSettings />} />
 
         <Route path="/estimation" element={<EstimationLayout />}>
           <Route index element={<EstimationDashboard />} />
@@ -69,7 +75,9 @@ const router = createBrowserRouter(
 export default function App() {
   return (
     <JobProvider>
-      <RouterProvider router={router} />
+      <Suspense fallback={<PageFallback />}>
+        <RouterProvider router={router} />
+      </Suspense>
     </JobProvider>
   )
 }

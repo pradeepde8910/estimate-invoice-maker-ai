@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from sqlalchemy.exc import OperationalError
 from pydantic import BaseModel
 from decimal import Decimal
@@ -82,8 +82,12 @@ def list_standalone_invoices(
     user=Depends(require_roles("Admin", "Finance"))
 ):
     from app.models.invoice import Invoice as InvoiceModel
+    # balance_due is derived from amount_paid, which sums self.payments —
+    # eager-load it so that's one extra query total instead of one per
+    # invoice returned.
     return (
         db.query(InvoiceModel)
+        .options(selectinload(InvoiceModel.payments))
         .filter(InvoiceModel.invoice_type == "STANDALONE")
         .order_by(InvoiceModel.created_at.desc())
         .all()

@@ -1,9 +1,9 @@
 from decimal import Decimal
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload, selectinload
 from sqlalchemy import func
 from app.models.project import Project, ProjectMilestone
 from app.models.project_component import ProjectCommercialComponent
-from app.models.invoice import Invoice, InvoiceTDS
+from app.models.invoice import Invoice, InvoiceItem, InvoiceTDS
 from app.models.payment import Payment
 from app.schemas.project_summary import ProjectFinancialSummary
 from typing import List
@@ -124,7 +124,22 @@ def get_project_invoices(db: Session, project_id: str) -> List[Invoice]:
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise ValueError("Project not found")
-    return db.query(Invoice).filter(Invoice.project_id == project_id).order_by(Invoice.created_at.desc()).all()
+    # Serializing each Invoice (InvoiceResponse) reads billing_sources (→
+    # items, and →component for any item billing against one),
+    # billing_model (→project), and amount_paid/balance_due (→payments) —
+    # four lazy relationships that would otherwise each cost one query per
+    # invoice returned. Eager-load them all up front instead.
+    return (
+        db.query(Invoice)
+        .options(
+            selectinload(Invoice.items).selectinload(InvoiceItem.component),
+            selectinload(Invoice.payments),
+            joinedload(Invoice.project),
+        )
+        .filter(Invoice.project_id == project_id)
+        .order_by(Invoice.created_at.desc())
+        .all()
+    )
 
 def get_project_payments(db: Session, project_id: str) -> List[Payment]:
     project = db.query(Project).filter(Project.id == project_id).first()

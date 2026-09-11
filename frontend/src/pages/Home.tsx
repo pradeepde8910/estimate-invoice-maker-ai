@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { useState } from 'react'
-import Topbar from '../components/Topbar'
+import Topbar, { AdminIcon } from '../components/Topbar'
 import { logout } from '../api/client'
 import ConfirmModal from '../components/ConfirmModal'
 import { useLogo } from '../hooks/useLogo'
@@ -19,36 +19,43 @@ export default function Home() {
 
   return (
     <div className="flex-1 min-h-screen bg-transparent">
-      <header className="flex items-center justify-between px-8 h-16 border-b border-slate-100 bg-white">
+      <header className="flex items-center justify-between px-4 sm:px-8 h-16 border-b border-slate-100 bg-white">
         <div className="flex items-center">
           {logoUrl
             ? <img src={logoUrl} alt="Logo" className="h-8 w-auto object-contain" />
             : <span className="text-sm font-bold text-slate-700">Pixous Technologies</span>
           }
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <button
-            onClick={() => navigate('/estimation/organization')}
+            onClick={() => navigate('/organization')}
             className="w-9 h-9 rounded-full text-slate-400 hover:bg-slate-50 hover:text-slate-600 flex items-center justify-center"
             title="Organization Settings"
           >
             <GearIcon className="w-5 h-5" />
           </button>
-          <button
-            onClick={() => setShowLogoutConfirm(true)}
-            className="w-9 h-9 rounded-full text-slate-400 hover:bg-coral-50 hover:text-coral-500 flex items-center justify-center transition-colors"
-            title="Log Out"
-          >
-            <LogoutIcon className="w-5 h-5" />
-          </button>
-          <div title="Pixous Admin Profile" className="w-9 h-9 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center font-semibold text-sm">
-            PA
+          <div className="flex items-center gap-2.5 bg-slate-50 border border-slate-200 rounded-2xl pl-3 pr-2 py-1.5">
+            <div className="hidden sm:block text-right leading-tight">
+              <div className="text-xs font-semibold text-slate-700 whitespace-nowrap">Pixous Admin</div>
+              <div className="text-[10px] text-slate-400 whitespace-nowrap">Administrator</div>
+            </div>
+            <div title="Pixous Admin — Administrator" className="w-9 h-9 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center shrink-0">
+              <AdminIcon className="w-5 h-5" />
+            </div>
+            <div className="w-px self-stretch bg-slate-200" />
+            <button
+              onClick={() => setShowLogoutConfirm(true)}
+              className="w-8 h-8 rounded-full text-slate-400 hover:bg-coral-50 hover:text-coral-500 flex items-center justify-center transition-colors shrink-0"
+              title="Log Out"
+            >
+              <LogoutIcon className="w-4 h-4" />
+            </button>
           </div>
         </div>
       </header>
 
-      <Topbar title={`${getGreeting()}, Pixous Admin 👋`} subtitle="What would you like to do today?" />
-      <div className="p-8">
+      <Topbar title={`${getGreeting()}, Pixous Admin 👋`} subtitle="What would you like to do today?" showAccount={false} />
+      <div className="p-4 sm:p-8">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl">
           <OptionCard
             tone="coral"

@@ -1,7 +1,11 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import toast from 'react-hot-toast'
 import Topbar from '../components/Topbar'
 import RecordPaymentModal from '../components/RecordPaymentModal'
+import LoadingState from '../components/LoadingState'
+import ErrorState from '../components/ErrorState'
+import DownloadButton from '../components/DownloadButton'
 import { getInvoiceDetails, downloadInvoicePdf, getOrganization } from '../api/client'
 import type { OrganizationProfile } from '../api/types'
 
@@ -53,10 +57,7 @@ export default function InvoiceViewV2() {
   const [org, setOrg] = useState<OrganizationProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [downloading, setDownloading] = useState(false)
-  const [downloadError, setDownloadError] = useState<string | null>(null)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
-  const [paymentSuccess, setPaymentSuccess] = useState<string | null>(null)
 
   function reloadInvoice() {
     if (invoiceId) getInvoiceDetails(invoiceId).then(setInvoice).catch(() => {})
@@ -64,14 +65,11 @@ export default function InvoiceViewV2() {
 
   async function handleDownload() {
     if (!invoiceId) return
-    setDownloading(true)
-    setDownloadError(null)
     try {
       await downloadInvoicePdf(invoiceId)
     } catch (e: any) {
-      setDownloadError(e.message || 'Failed to download PDF')
-    } finally {
-      setDownloading(false)
+      toast.error(e.message || 'Failed to download PDF')
+      throw e
     }
   }
 
@@ -79,17 +77,11 @@ export default function InvoiceViewV2() {
     if (invoiceId) {
       getInvoiceDetails(invoiceId)
         .then(setInvoice)
-        .catch(e => setError(e.message))
+        .catch(e => { setError(e.message); toast.error(e.message) })
         .finally(() => setLoading(false))
     }
     getOrganization().then((r) => setOrg(r.profile)).catch(() => setOrg(null))
   }, [invoiceId])
-
-  useEffect(() => {
-    if (!paymentSuccess) return
-    const t = setTimeout(() => setPaymentSuccess(null), 4000)
-    return () => clearTimeout(t)
-  }, [paymentSuccess])
 
   const formatMoney = (val: string | number) => `₹${parseFloat(val.toString()).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
 
@@ -223,8 +215,8 @@ export default function InvoiceViewV2() {
     return { chunkPages, trailingOnOwnPage }
   }, [measurements, chunks])
 
-  if (loading) return <div className="p-8 text-center text-slate-500">Loading invoice...</div>
-  if (error || !invoice) return <div className="p-8 text-center text-red-500">{error || 'Failed to load invoice.'}</div>
+  if (loading) return <LoadingState label="Loading invoice…" className="min-h-screen py-8" />
+  if (error || !invoice) return <ErrorState message={error || 'Failed to load invoice.'} className="min-h-screen py-8" />
 
   // ---- `invoice` is guaranteed non-null from here on. ----
 
@@ -371,7 +363,6 @@ export default function InvoiceViewV2() {
           <h1 className="text-xl font-black text-slate-900 tracking-tight">INVOICE</h1>
           <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest ${
             invoice.status === 'ISSUED' ? 'bg-blue-100 text-blue-800' :
-            invoice.status === 'CANCELLED' ? 'bg-coral-100 text-coral-700' :
             'bg-slate-200 text-slate-700'
           }`}>
             {invoice.status}
@@ -591,14 +582,14 @@ export default function InvoiceViewV2() {
       <div className="max-w-4xl mx-auto mt-8 px-4 print:max-w-none print:mt-0 print:px-0">
 
         {/* Actions Bar */}
-        <div className="print:hidden flex justify-between items-center mb-4">
+        <div className="print:hidden flex flex-wrap justify-between items-center gap-3 mb-4">
           <button
             onClick={() => navigate(isStandalone ? '/invoice' : `/invoice/projects/${projectId}`)}
             className="text-sm font-medium text-slate-600 hover:text-slate-900"
           >
             {isStandalone ? '← Back to Projects & Invoices' : '← Back to Project'}
           </button>
-          <div className="flex space-x-3">
+          <div className="flex flex-wrap gap-3">
             {invoice.status === 'ISSUED' && invoice.payment_status !== 'PAID' && (
               <button
                 onClick={() => setShowPaymentModal(true)}
@@ -610,23 +601,13 @@ export default function InvoiceViewV2() {
             <button onClick={() => window.print()} className="text-sm font-medium bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-50">
               Print
             </button>
-            <button
-              onClick={handleDownload}
-              disabled={downloading}
-              className="text-sm font-medium bg-brand-600 text-white px-4 py-2 rounded-lg hover:bg-brand-700 disabled:opacity-50 inline-flex items-center gap-2"
-            >
-              {downloading ? 'Preparing…' : 'Download Statement (PDF)'}
-            </button>
+            <DownloadButton
+              onDownload={handleDownload}
+              label="Download Statement (PDF)"
+              className="text-sm font-medium bg-brand-600 text-white px-4 py-2 rounded-lg hover:bg-brand-700 disabled:opacity-50"
+            />
           </div>
         </div>
-
-        {paymentSuccess && (
-          <div className="print:hidden mb-4 text-sm text-brand-700 bg-brand-50 rounded-lg px-4 py-2">{paymentSuccess}</div>
-        )}
-
-        {downloadError && (
-          <div className="print:hidden mb-4 text-sm text-coral-600 bg-coral-50 rounded-lg px-4 py-2">{downloadError}</div>
-        )}
 
         {/* Hidden measurement scaffold — an off-screen dry run used only to
             read real DOM heights for pagination below; never shown to the
@@ -660,7 +641,13 @@ export default function InvoiceViewV2() {
           </div>
         </div>
 
-        {/* Invoice Paper — one or more strict A4 (210mm × 297mm) sheets */}
+        {/* Invoice Paper — one or more strict A4 (210mm × 297mm) sheets.
+            Each page is a fixed 210mm wide by design (see .invoice-a4-page in
+            index.css) so it matches the printed sheet exactly, which means it
+            is wider than most phone/tablet viewports. This wrapper lets that
+            width scroll horizontally within its own bounds instead of
+            blowing out the page layout. */}
+        <div className="overflow-x-auto print:overflow-visible">
         {chunkPagesForRender.map((chunkIdxs: number[], pageIdx: number) => {
           const isLastGroupPage = pageIdx === chunkPagesForRender.length - 1
           const showTrailingHere = isLastGroupPage && !(pagination?.trailingOnOwnPage)
@@ -710,6 +697,7 @@ export default function InvoiceViewV2() {
             </div>
           </div>
         )}
+        </div>
       </div>
 
       {showPaymentModal && (
@@ -719,7 +707,7 @@ export default function InvoiceViewV2() {
           onClose={() => setShowPaymentModal(false)}
           onRecorded={(message) => {
             reloadInvoice()
-            setPaymentSuccess(message)
+            toast.success(message)
             setShowPaymentModal(false)
           }}
         />

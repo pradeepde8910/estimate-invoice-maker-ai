@@ -418,7 +418,11 @@ def _sheet_cost_by_role(wb: Workbook, data: dict) -> None:
         cost_ref = Reference(ws, min_col=4, min_row=row, max_row=data_last)
         hours_ref = Reference(ws, min_col=2, min_row=row, max_row=data_last)
         _bar_chart("Total Cost by Role", ws, cat_ref, cost_ref, f"F{row}", y_title="INR", point_count=len(rows))
-        _pie_chart("Effort Distribution (Hours) by Role", ws, cat_ref, hours_ref, f"F{row + 18}", number_format="#,##0.0")
+        # A chart.height of 10 (cm) needs ~19 rows at Excel's default row
+        # height (15pt ≈ 0.53cm/row) to fully render — a gap of 18 left the
+        # pie chart's anchor about a row above the bar chart's actual bottom
+        # edge, so the two charts overlapped and both looked unreadable.
+        _pie_chart("Effort Distribution (Hours) by Role", ws, cat_ref, hours_ref, f"F{row + 21}", number_format="#,##0.0")
 
 
 def _sheet_cost_by_category(wb: Workbook, data: dict) -> None:

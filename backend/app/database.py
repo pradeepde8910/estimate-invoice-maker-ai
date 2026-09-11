@@ -18,6 +18,17 @@ DATABASE_URL = os.getenv("DATABASE_URL", os.getenv("V2_DATABASE_URL", "sqlite://
 
 engine = create_engine(
     DATABASE_URL,
+    # Without these, a connection pooler in front of the (remote) database —
+    # e.g. Supabase's pgbouncer — silently drops idle connections after a
+    # few minutes; SQLAlchemy would then hand a dead connection back out of
+    # the pool, and the request using it hangs/fails until it times out and
+    # reconnects. pool_pre_ping validates the connection before every
+    # checkout (a cheap SELECT 1) and pool_recycle forces a refresh before
+    # it goes stale — matches app/core/database.py's engine, which every
+    # other part of the app already uses without this intermittent-hang
+    # symptom.
+    pool_pre_ping=True,
+    pool_recycle=3600,
     connect_args={"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
 )
 

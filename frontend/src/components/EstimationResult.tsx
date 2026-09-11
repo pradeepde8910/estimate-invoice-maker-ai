@@ -204,6 +204,7 @@ function ProjectTimeline({ phases, timelineWeeks, baseName }: { phases: Phase[];
     return {
       name: phase.name,
       description: phase.description,
+      weeklyBreakdown: phase.weekly_breakdown || [],
       startWeek,
       endWeek: elapsed,
       durationWeeks: phase.duration_weeks,
@@ -241,7 +242,7 @@ function ProjectTimeline({ phases, timelineWeeks, baseName }: { phases: Phase[];
           <div className="min-w-[600px] relative">
             
             {/* Grid Lines Background */}
-            <div className="absolute top-6 bottom-0 left-32 right-0 flex z-0 pointer-events-none">
+            <div className="absolute top-6 bottom-0 left-48 right-0 flex z-0 pointer-events-none">
               {weekMarkers.map(w => (
                 <div key={w} className="flex-1 flex justify-center">
                   <div className="w-px h-full bg-slate-100" />
@@ -250,7 +251,7 @@ function ProjectTimeline({ phases, timelineWeeks, baseName }: { phases: Phase[];
             </div>
 
             {/* Week Headers */}
-            <div className="flex mb-4 pl-32 relative z-10">
+            <div className="flex mb-4 pl-48 relative z-10">
               {weekMarkers.map(w => (
                 <div key={w} className="flex-1 text-center">
                   <div className="text-[10px] font-semibold text-slate-400 mb-2">W{w}</div>
@@ -259,7 +260,7 @@ function ProjectTimeline({ phases, timelineWeeks, baseName }: { phases: Phase[];
             </div>
 
             {/* Timeline Bars */}
-            <div className="space-y-8 relative z-10 mt-6 pb-4">
+            <div className="space-y-20 relative z-10 mt-6 pb-4">
               {scheduleUnits.map((unit, i) => {
                 const widthPct = (unit.durationWeeks / totalWeeks) * 100;
                 const leftPct = (unit.startWeek / totalWeeks) * 100;
@@ -275,10 +276,10 @@ function ProjectTimeline({ phases, timelineWeeks, baseName }: { phases: Phase[];
                 
                 return (
                   <div key={i} className="flex relative items-start group">
-                    <div className="w-32 shrink-0 pr-4 pt-1 z-20 bg-white">
-                      <h4 className="font-medium text-slate-800 text-sm truncate" title={unit.name}>{unit.name}</h4>
+                    <div className="w-48 shrink-0 pr-4 pt-1 z-20 bg-white">
+                      <h4 className="font-medium text-slate-800 text-sm leading-snug line-clamp-3" title={unit.name}>{unit.name}</h4>
                     </div>
-                    <div className="flex-1 relative h-8">
+                    <div className="flex-1 relative pb-6 min-h-[6rem]">
                        <div 
                          className={`absolute top-0 h-6 ${colorClass} rounded-md opacity-90 group-hover:opacity-100 shadow-sm group-hover:shadow-md group-hover:scale-y-[1.05] transition-all duration-300 cursor-pointer`}
                          style={{ width: `${widthPct}%`, left: `${leftPct}%` }}
@@ -289,6 +290,23 @@ function ProjectTimeline({ phases, timelineWeeks, baseName }: { phases: Phase[];
                        >
                          Week {unit.startWeek + 1} – {unit.endWeek} · {unit.durationWeeks} weeks
                        </div>
+
+                       {unit.weeklyBreakdown.length > 0 && (
+                         <div 
+                           className="absolute top-12 flex items-start"
+                           style={{ width: `${widthPct}%`, left: `${leftPct}%` }}
+                         >
+                           {unit.weeklyBreakdown.map((txt, idx) => (
+                             <div 
+                               key={idx} 
+                               className="flex-1 pl-3 pr-2 border-l-2 border-slate-200/60 first:border-l-0 text-[10px] leading-[1.4] text-slate-500"
+                               title={txt}
+                             >
+                               {txt}
+                             </div>
+                           ))}
+                         </div>
+                       )}
                     </div>
                   </div>
                 )
@@ -403,7 +421,7 @@ export default function EstimationResult({
                 <DonutChart
                   data={result.role_estimates.map((r) => ({ name: r.role_label, value: r.total_cost }))}
                   valueFormatter={inr}
-                  centerLabel={{ value: inr(result.total_development_cost), label: 'Dev Cost' }}
+                  centerLabel={{ value: inr(result.total_development_cost), label: 'Total Cost' }}
                 />
               </div>
               <div>
@@ -411,7 +429,7 @@ export default function EstimationResult({
                 <DonutChart
                   data={result.category_breakdown.map((c) => ({ name: c.category, value: c.total_cost }))}
                   valueFormatter={inr}
-                  centerLabel={{ value: String(result.category_breakdown.length), label: 'Categories' }}
+                  centerLabel={{ value: inr(result.total_development_cost), label: 'Total Cost' }}
                 />
               </div>
             </div>

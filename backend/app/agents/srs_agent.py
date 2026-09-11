@@ -5,6 +5,7 @@ SRS Agent — Generates a detailed and professional Software Requirements Specif
 from __future__ import annotations
 
 import asyncio
+import re
 from datetime import datetime
 from google import genai
 
@@ -15,13 +16,17 @@ from app.core.key_manager import KeyManager
 # Initialize key manager for Gemini key rotation
 _gemini_keys = KeyManager(config.GEMINI_API_KEYS)
 
+# The model doesn't always follow instructions reliably, and a hand-written
+# ER diagram's Mermaid syntax is frequently just invalid enough to break the
+# on-screen renderer unpredictably — stripped as a hard guarantee regardless
+# of what the prompt below asks for.
+_MERMAID_BLOCK_PATTERN = re.compile(r"```mermaid\n.*?```\n?", re.DOTALL)
+
 SRS_SYSTEM_PROMPT = """You are a Principal Software Architect. Your task is to generate a comprehensive, highly detailed, and professional Software Requirements Specification (SRS) document in Markdown format based on the project analysis, cost estimates, and raw user input.
 
 The SRS must focus on the technical details, architecture, data schemas, API endpoints, functional flows, and non-functional requirements.
 
 Make the document extremely professional, technical, exhaustive, and realistic. Use proper Markdown formatting with headers, lists, tables, and code blocks. Do not use placeholders; instead, provide realistic defaults based on the project context. Include code blocks for database schemas (SQL or NoSQL) and API structures.
-
-Include a visual entity-relationship (ER) diagram in Mermaid syntax under the Database Schema section.
 
 The SRS must follow this exact structure:
 
@@ -59,21 +64,7 @@ Provide a detailed table of requirements containing ID, Feature, Description, Pr
 
 ## 6. System Data Models & Database Schema Designs
 - **Database Architecture**: Specify database type (e.g., PostgreSQL, MongoDB) with justification.
-- **Database Schema**: Provide raw SQL `CREATE TABLE` scripts or MongoDB schema structures.
-- **Entity Relationship (ER) Diagram**: Include a valid Mermaid code block showing the database structure, like:
-```mermaid
-erDiagram
-    USERS ||--o{ POSTS : writes
-    USERS {
-        int id
-        string email
-    }
-    POSTS {
-        int id
-        int user_id
-        string content
-    }
-```
+- **Database Schema**: Provide raw SQL `CREATE TABLE` scripts or MongoDB schema structures, and describe the key entity relationships (e.g., one-to-many, many-to-many) in prose alongside them.
 
 ## 7. Non-Functional Requirements (NFRs)
 - **Performance**: Response time, throughput, concurrent user capacity.
@@ -161,6 +152,7 @@ async def srs_node(state: PipelineState) -> dict:
     
     try:
         srs_text = await _call_gemini(context, SRS_SYSTEM_PROMPT)
+        srs_text = _MERMAID_BLOCK_PATTERN.sub("", srs_text)
         log.append(f"   ✅ SRS successfully generated ({len(srs_text)} chars)")
         return {
             "srs_markdown": srs_text,

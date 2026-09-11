@@ -192,7 +192,7 @@ export default function NewStandaloneInvoice() {
   return (
     <div className="flex-1 bg-transparent min-h-screen">
       <Topbar showBack title="New Standalone Invoice" subtitle="Bill a client directly — no project required." />
-      <div className="p-8 space-y-6 max-w-4xl mx-auto">
+      <div className="p-4 sm:p-8 space-y-6 max-w-4xl mx-auto">
         <Card title="Client">
           <div className="flex gap-2 mb-4">
             <button
@@ -335,7 +335,7 @@ export default function NewStandaloneInvoice() {
             {items.map((item, index) => (
               <div key={index} className="flex gap-4 items-start p-4 bg-slate-50 rounded-lg border border-slate-200">
                 <div className="flex-1 space-y-4">
-                  <div className="flex gap-4">
+                  <div className="flex flex-col sm:flex-row gap-4">
                     <div className="flex-1">
                       <label className="block text-xs font-medium text-slate-500 mb-1">Description</label>
                       <input
@@ -346,7 +346,7 @@ export default function NewStandaloneInvoice() {
                         placeholder="Description to appear on invoice"
                       />
                     </div>
-                    <div className="w-1/4">
+                    <div className="w-full sm:w-1/4">
                       <label className="block text-xs font-medium text-slate-500 mb-1">Amount (₹)</label>
                       <input
                         type="number"
@@ -356,7 +356,7 @@ export default function NewStandaloneInvoice() {
                         placeholder="0.00"
                       />
                     </div>
-                    <div className="w-1/6">
+                    <div className="w-full sm:w-1/6">
                       <label className="block text-xs font-medium text-slate-500 mb-1">Hours</label>
                       <input
                         type="number"
@@ -391,7 +391,7 @@ export default function NewStandaloneInvoice() {
               + Add Line Item
             </button>
 
-            <div className="pt-4 border-t border-slate-100 grid grid-cols-3 gap-4">
+            <div className="pt-4 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">PO Number (optional)</label>
                 <input
@@ -434,7 +434,7 @@ export default function NewStandaloneInvoice() {
 
             {error && <div className="text-sm text-coral-600 bg-coral-50 p-3 rounded-lg">{error}</div>}
 
-            <div className="pt-4 flex items-center justify-between">
+            <div className="pt-4 flex items-center justify-between flex-wrap gap-3">
               <div className="text-sm text-slate-500">
                 Subtotal <span className="font-semibold text-slate-800 ml-1">₹{subtotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
               </div>

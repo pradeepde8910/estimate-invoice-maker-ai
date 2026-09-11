@@ -5,6 +5,8 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.responses import PlainTextResponse
+from pydantic import BaseModel
+from sqlalchemy.orm import joinedload
 
 from app import config
 from app.api.dependencies import require_roles
@@ -34,15 +36,33 @@ def _safe_output_path(filename: str) -> Path:
 async def list_documents(user: User = Depends(require_roles("Admin", "Developer", "Finance"))):
     db = SessionLocal()
     try:
-        estimations = db.query(Estimation).filter(Estimation.is_deleted == False).order_by(Estimation.updated_at.desc()).all()
+        estimations = (
+            db.query(Estimation)
+            .options(joinedload(Estimation.client))
+            .filter(Estimation.is_deleted == False)
+            .order_by(Estimation.updated_at.desc())
+            .all()
+        )
         if estimations:
+            # One batched query for every estimation's documents instead of
+            # one query per estimation — with `est.client` eager-loaded
+            # above via the same query (a SQL JOIN) rather than lazy-loaded
+            # per row, this endpoint now costs 2 round trips total instead
+            # of 1 + 2*N (N = number of estimations). Each of those N+1
+            # round trips is a real network hop to the (remote) database,
+            # not a cheap local call, so this was the dominant cost of
+            # loading the Estimations list page.
+            est_ids = [est.id for est in estimations]
+            docs_by_estimation: dict[str, list[Document]] = {}
+            for d in db.query(Document).filter(Document.estimation_id.in_(est_ids)).all():
+                docs_by_estimation.setdefault(d.estimation_id, []).append(d)
+
             docs = []
             for est in estimations:
                 client_name = est.client.company_name if est.client else "Unspecified Client"
 
                 files_dict = {}
-                db_docs = db.query(Document).filter(Document.estimation_id == est.id).all()
-                for d in db_docs:
+                for d in docs_by_estimation.get(est.id, []):
                     files_dict[d.type] = f"{est.id}_{d.type}.md"
                 if est.raw_pipeline_json:
                     files_dict["data"] = f"{est.id}_data.json"
@@ -56,6 +76,8 @@ async def list_documents(user: User = Depends(require_roles("Admin", "Developer"
                     "grand_total": est.grand_total,
                     "timeline_weeks": est.timeline_weeks,
                     "version": est.version,
+                    "status": est.status,
+                    "converted_project_id": est.converted_project_id,
                 })
             return {"documents": docs}
     except Exception as e:
@@ -99,6 +121,8 @@ async def list_documents(user: User = Depends(require_roles("Admin", "Developer"
             "modified": datetime.fromtimestamp(g["modified"]).isoformat(),
             "grand_total": grand_total,
             "timeline_weeks": timeline_weeks,
+            "status": None,
+            "converted_project_id": None,
         })
     docs.sort(key=lambda d: d["modified"], reverse=True)
     return {"documents": docs}
@@ -228,6 +252,40 @@ async def get_document_file(
     if not path.exists():
         raise HTTPException(404, "Document not found")
     return PlainTextResponse(path.read_text(encoding="utf-8"), media_type="text/plain")
+
+
+class DocumentUpdateRequest(BaseModel):
+    content: str
+
+
+@router.put("/api/documents/{base_name}/{doc_type}")
+async def update_document_file(
+    base_name: str,
+    doc_type: str,
+    payload: DocumentUpdateRequest,
+    user: User = Depends(require_roles("Admin", "Developer", "Finance")),
+):
+    doc_type = doc_type.lower()
+    if doc_type not in ("quotation", "brd", "srs"):
+        raise HTTPException(400, "Unknown document type")
+
+    db = SessionLocal()
+    try:
+        doc = db.query(Document).filter(Document.estimation_id == base_name, Document.type == doc_type).order_by(Document.version.desc()).first()
+        if doc:
+            doc.content = payload.content
+            db.commit()
+            return {"content": doc.content}
+    except Exception as e:
+        db.rollback()
+        print(f"DB update_document_file failed: {e}")
+    finally:
+        db.close()
+
+    # Fallback to local files — mirrors get_document_file's fallback path.
+    path = _safe_output_path(f"{base_name}_{doc_type}.md")
+    path.write_text(payload.content, encoding="utf-8")
+    return {"content": payload.content}
 
 
 @router.get("/api/documents/{base_name}/{doc_type}/pdf")

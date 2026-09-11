@@ -29,7 +29,7 @@ export default function NewInvoice() {
   return (
     <div className="flex-1 bg-transparent min-h-screen">
       <Topbar showBack title="New Invoice" subtitle="Create an invoice manually, or generate one from an existing estimation." />
-      <div className="p-8 space-y-6">
+      <div className="p-4 sm:p-8 space-y-6">
         {uninvoiced.length > 0 && (
           <Card title="From an Existing Estimation">
             <ul className="divide-y divide-slate-100">
@@ -99,7 +99,7 @@ function ManualInvoiceForm({ onCreated }: { onCreated: (baseName: string) => voi
 
   return (
     <Card title="Manual Invoice">
-      <div className="grid grid-cols-2 gap-4 mb-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
         <div>
           <label className="text-sm font-medium text-slate-600">Client Name <span className="text-coral-500">*</span></label>
           <input
@@ -122,7 +122,7 @@ function ManualInvoiceForm({ onCreated }: { onCreated: (baseName: string) => voi
 
       <div className="mt-4">
         <label className="text-sm font-medium text-slate-600 block mb-3">Line Items <span className="text-coral-500">*</span></label>
-        <div className="grid grid-cols-12 gap-2 items-center mb-2 px-1">
+        <div className="hidden sm:grid grid-cols-12 gap-2 items-center mb-2 px-1">
           <div className="col-span-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Item / Description <span className="text-coral-500">*</span></div>
           <div className="col-span-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Qty / Hours <span className="text-coral-500">*</span></div>
           <div className="col-span-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Rate (₹)</div>
@@ -130,12 +130,12 @@ function ManualInvoiceForm({ onCreated }: { onCreated: (baseName: string) => voi
         </div>
         <div className="space-y-2">
           {rows.map((row, i) => (
-            <div key={i} className="grid grid-cols-12 gap-2 items-center">
+            <div key={i} className="grid grid-cols-2 sm:grid-cols-12 gap-2 items-center">
               <input
                 value={row.description}
                 onChange={(e) => updateRow(i, { description: e.target.value })}
                 placeholder="e.g. Web Development"
-                className="col-span-6 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
+                className="col-span-2 sm:col-span-6 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
               />
               <input
                 type="number"
@@ -144,7 +144,7 @@ function ManualInvoiceForm({ onCreated }: { onCreated: (baseName: string) => voi
                 value={row.quantity}
                 onChange={(e) => updateRow(i, { quantity: Math.min(99999, Math.max(1, Number(e.target.value))) })}
                 placeholder="1"
-                className="col-span-2 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
+                className="col-span-1 sm:col-span-2 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
               />
               <input
                 type="number"
@@ -153,7 +153,7 @@ function ManualInvoiceForm({ onCreated }: { onCreated: (baseName: string) => voi
                 value={row.rate}
                 onChange={(e) => updateRow(i, { rate: Math.min(9999999, Math.max(0, Number(e.target.value))) })}
                 placeholder="0"
-                className="col-span-2 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
+                className="col-span-1 sm:col-span-2 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
               />
               <div className="col-span-1 text-sm font-medium text-slate-700 tabular-nums text-right">{inr(row.quantity * row.rate)}</div>
             <button
@@ -173,7 +173,7 @@ function ManualInvoiceForm({ onCreated }: { onCreated: (baseName: string) => voi
       </div>
       </div>
 
-      <div className="flex items-center justify-between mt-5 pt-4 border-t border-slate-100">
+      <div className="flex items-center justify-between flex-wrap gap-3 mt-5 pt-4 border-t border-slate-100">
         <div className="text-sm text-slate-500">
           Subtotal <span className="font-semibold text-slate-800 ml-1">{inr(total)}</span>
         </div>

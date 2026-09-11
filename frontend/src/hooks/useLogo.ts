@@ -64,15 +64,20 @@ export function useLogo(): string | null {
   )
 
   useEffect(() => {
-    if (_cached !== undefined) {
-      setLogoUrl(_cached)
-      return
-    }
-
+    // Always subscribe — regardless of whether a cached value already exists
+    // — so that any later refreshLogo() call (e.g. uploading/removing a logo
+    // in Organization Settings) reaches every mounted consumer, not just the
+    // handful that happened to mount before the very first fetch resolved.
+    // The previous version returned early here whenever `_cached` was
+    // already set, which skipped `_listeners.add` entirely — every page or
+    // sidebar mounted after that point (a fresh Login visit, navigating into
+    // a workspace, ...) was permanently stuck showing whatever logo existed
+    // at the time it first mounted.
     _listeners.add(setLogoUrl)
 
-    // First subscriber triggers the fetch
-    if (!_fetching) {
+    if (_cached !== undefined) {
+      setLogoUrl(_cached)
+    } else if (!_fetching) {
       _fetchLogo()
     }
 

@@ -93,6 +93,7 @@ export interface Phase {
   name: string
   duration_weeks: number
   description: string
+  weekly_breakdown?: string[]
 }
 
 export interface WebSearchItem {
@@ -249,6 +250,8 @@ export interface DocumentSummary {
   has_invoice: boolean
   invoice_meta: InvoiceMeta | null
   version: number
+  status?: string | null
+  converted_project_id?: string | null
 }
 
 export interface ClientGroup {

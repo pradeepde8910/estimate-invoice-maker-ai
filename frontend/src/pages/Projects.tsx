@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import toast from 'react-hot-toast'
 import Topbar from '../components/Topbar'
 import Card from '../components/Card'
 import { listProjects, downloadProjectStatement, listStandaloneInvoices, listMasterClients } from '../api/client'
 import { clientDisplayLabel } from '../utils/clientLabel'
+import LoadingState from '../components/LoadingState'
 
 const money = (v: string | number) => '₹' + parseFloat(String(v)).toLocaleString('en-IN', { minimumFractionDigits: 2 })
 
@@ -23,16 +25,17 @@ function StatusBadge({ status }: { status: string }) {
   return <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${tone}`}>{status}</span>
 }
 
+// Standalone invoices still show a real, varied status (DRAFT/ISSUED/...), so
+// StatusBadge above stays in use for them — only the per-project Status
+// column was removed, since Project.status is always "Active" today.
+
 export default function Projects() {
   const [projects, setProjects] = useState<any[]>([])
   const [standaloneInvoices, setStandaloneInvoices] = useState<any[]>([])
   const [clients, setClients] = useState<any[]>([])
   const [search, setSearch] = useState('')
   const [clientFilter, setClientFilter] = useState('')
-  const [billingFilter, setBillingFilter] = useState('')
-  const [statusFilter, setStatusFilter] = useState('')
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const navigate = useNavigate()
 
   const [showDownloadPanel, setShowDownloadPanel] = useState(false)
@@ -43,7 +46,7 @@ export default function Projects() {
   useEffect(() => {
     listProjects()
       .then(setProjects)
-      .catch((e) => setError(e.message))
+      .catch((e) => toast.error(e.message))
       .finally(() => setLoading(false))
     listStandaloneInvoices()
       .then(setStandaloneInvoices)
@@ -63,15 +66,6 @@ export default function Projects() {
     }
     return Array.from(labels).sort()
   }, [projects, clients])
-  const distinctBillingTypes = useMemo(
-    () => Array.from(new Set(projects.map((p) => p.billing_type).filter(Boolean))).sort(),
-    [projects]
-  )
-  const distinctStatuses = useMemo(
-    () => Array.from(new Set(projects.map((p) => p.status).filter(Boolean))).sort(),
-    [projects]
-  )
-
   const visible = projects.filter((p) => {
     const q = search.trim().toLowerCase()
     if (q) {
@@ -86,8 +80,6 @@ export default function Projects() {
       const label = c ? clientDisplayLabel(c) : p.client_name || 'Unknown'
       if (label !== clientFilter) return false
     }
-    if (billingFilter && p.billing_type !== billingFilter) return false
-    if (statusFilter && p.status !== statusFilter) return false
     return true
   })
 
@@ -98,7 +90,6 @@ export default function Projects() {
   async function handleDownload() {
     if (visible.length === 0) return
     setDownloading(true)
-    setError(null)
     try {
       await downloadProjectStatement({
         projectIds: visible.map((p) => p.id),
@@ -107,7 +98,7 @@ export default function Projects() {
       })
       setShowDownloadPanel(false)
     } catch (e: any) {
-      setError(e.message || 'Failed to download statement')
+      toast.error(e.message || 'Failed to download statement')
     } finally {
       setDownloading(false)
     }
@@ -116,7 +107,7 @@ export default function Projects() {
   return (
     <div className="flex-1 bg-transparent min-h-screen">
       <Topbar showBack={false} title="Projects & Invoices" subtitle="Manage all projects and their financial summaries." />
-      <div className="p-8 space-y-6">
+      <div className="p-4 sm:p-8 space-y-6">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-2 flex-wrap">
             {projects.length > 0 && (
@@ -125,7 +116,7 @@ export default function Projects() {
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search by project name, number, or client…"
-                  className="w-72 bg-white shadow-card rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
+                  className="w-full sm:w-96 bg-white shadow-card rounded-full px-4 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-300 placeholder:text-slate-500"
                 />
                 <select
                   value={clientFilter}
@@ -139,29 +130,9 @@ export default function Projects() {
                     </option>
                   ))}
                 </select>
-                <select
-                  value={billingFilter}
-                  onChange={(e) => setBillingFilter(e.target.value)}
-                  className="bg-white shadow-card rounded-full px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
-                >
-                  <option value="">All Billing Types</option>
-                  {distinctBillingTypes.map((b) => (
-                    <option key={b} value={b}>{b}</option>
-                  ))}
-                </select>
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="bg-white shadow-card rounded-full px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
-                >
-                  <option value="">All Statuses</option>
-                  {distinctStatuses.map((s) => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
-                {(clientFilter || billingFilter || statusFilter || search) && (
+                {(clientFilter || search) && (
                   <button
-                    onClick={() => { setClientFilter(''); setBillingFilter(''); setStatusFilter(''); setSearch('') }}
+                    onClick={() => { setClientFilter(''); setSearch('') }}
                     className="text-xs font-medium text-slate-500 hover:text-slate-700 px-2"
                   >
                     Clear filters
@@ -170,7 +141,7 @@ export default function Projects() {
               </>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap gap-y-2">
             {projects.length > 0 && (
               <div className="relative">
                 <button
@@ -180,7 +151,7 @@ export default function Projects() {
                   ⬇ Download ({visible.length})
                 </button>
                 {showDownloadPanel && (
-                  <div className="absolute right-0 mt-2 w-80 bg-white border border-slate-200 rounded-2xl shadow-card p-4 z-20 space-y-4">
+                  <div className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] bg-white border border-slate-200 rounded-2xl shadow-card p-4 z-20 space-y-4">
                     <div>
                       <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
                         Columns to include
@@ -231,21 +202,11 @@ export default function Projects() {
             >
               + New Standalone Invoice
             </button>
-            <button
-              onClick={() => { /* TODO: project creation requires a client + billing-type picker; not yet wired up */ }}
-              title="Project creation form not implemented yet"
-              disabled
-              className="text-sm font-medium bg-slate-200 text-slate-400 cursor-not-allowed px-5 py-2.5 rounded-full"
-            >
-              + New Project
-            </button>
           </div>
         </div>
 
-        {error && <div className="text-sm text-coral-600 bg-coral-50 rounded-2xl px-4 py-3">{error}</div>}
-
         {loading ? (
-          <p className="text-sm text-slate-400">Loading…</p>
+          <LoadingState />
         ) : projects.length === 0 ? (
           <Card className="text-center py-10 text-sm text-slate-400">
             No projects found. Convert an approved estimation into a project to get started.
@@ -263,9 +224,7 @@ export default function Projects() {
                     <th className="py-3 px-5 font-medium">Project</th>
                     <th className="py-3 px-5 font-medium">Client</th>
                     <th className="py-3 px-5 font-medium">Number</th>
-                    <th className="py-3 px-5 font-medium">Billing</th>
                     <th className="py-3 px-5 font-medium text-right">Contract Value</th>
-                    <th className="py-3 px-5 font-medium text-center">Status</th>
                     <th className="py-3 px-5 font-medium text-right">Action</th>
                   </tr>
                 </thead>
@@ -277,20 +236,8 @@ export default function Projects() {
                         {p.client_name || <span className="text-slate-300 italic">Unspecified</span>}
                       </td>
                       <td className="py-3.5 px-5 text-slate-500 font-mono text-xs">{p.project_number}</td>
-                      <td className="py-3.5 px-5">
-                        {p.billing_type ? (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide bg-indigo-50 text-indigo-700">
-                            {p.billing_type}
-                          </span>
-                        ) : (
-                          <span className="text-slate-300 text-xs">—</span>
-                        )}
-                      </td>
                       <td className="py-3.5 px-5 text-right font-semibold text-slate-800 tabular-nums">
                         {money(p.contract_value)}
-                      </td>
-                      <td className="py-3.5 px-5 text-center">
-                        <StatusBadge status={p.status} />
                       </td>
                       <td className="py-3.5 px-5 text-right">
                         <button

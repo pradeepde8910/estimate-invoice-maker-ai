@@ -7,6 +7,7 @@ from app.models.user import User
 from app.core.security import verify_password, create_access_token
 from app.core.rate_limiter import check_login_rate_limit, record_login_failure, record_login_success
 from app import config
+from app.services import organization_service as organization
 
 router = APIRouter()
 
@@ -53,3 +54,13 @@ def login(request: LoginRequest, http_request: Request, db: Session = Depends(ge
 @router.get("/validate")
 def validate():
     return {"status": "valid"}
+
+
+@router.get("/branding")
+def public_branding():
+    """Deliberately unauthenticated — the Login page (useLogo.ts) needs the
+    org's logo before a token exists. Returns only the logo path, never the
+    rest of the organization profile, to avoid leaking business details
+    pre-login."""
+    profile = organization.get_organization_profile()
+    return {"logo_path": profile.get("logo_path")}

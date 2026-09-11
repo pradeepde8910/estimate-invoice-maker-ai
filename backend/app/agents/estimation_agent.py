@@ -107,7 +107,8 @@ Respond with ONLY valid JSON — no markdown, no explanations:
       "name": "MUST correspond to a unit label from the project_units_summary",
       "duration_weeks": number,
       "description": "string",
-      "estimation_note": "explain why this phase takes this many weeks"
+      "estimation_note": "explain why this phase takes this many weeks",
+      "weekly_breakdown": ["list of strings, exact length must match duration_weeks, detailing items completed in each week"]
     }}
   ],
   "estimation_assumptions": [

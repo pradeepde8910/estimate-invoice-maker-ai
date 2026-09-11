@@ -152,17 +152,6 @@ class TestBillingPreview:
         descriptions = {t["description"] for t in resp.json()["milestones"][0]["tasks"]}
         assert "Build login API" not in descriptions
 
-    def test_task_on_cancelled_invoice_is_not_excluded(self, client_app):
-        """CANCELLED invoices don't hold a task's billing slot — a cancelled
-        draft shouldn't permanently block the underlying task from being billed."""
-        client, session_factory = client_app
-        _seed(session_factory, invoice_items={"invoice_status": "CANCELLED", "task_key": "unit-1:req-0:task-0"})
-
-        resp = client.get("/api/projects/proj-1/billing-preview")
-        assert resp.status_code == 200
-        descriptions = {t["description"] for t in resp.json()["milestones"][0]["tasks"]}
-        assert "Build login API" in descriptions
-
     def test_milestone_with_all_tasks_billed_is_omitted_entirely(self, client_app):
         client, session_factory = client_app
         db = session_factory()

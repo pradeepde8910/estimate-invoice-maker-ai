@@ -122,13 +122,34 @@ async def apply_branding_history(user: User = Depends(require_roles("Admin"))):
         for doc in documents:
             if doc.content:
                 lines = doc.content.split('\n')
-                for i in range(min(15, len(lines))):
-                    if lines[i].strip() == '---':
-                        lines = lines[i + 1:]
+                while True:
+                    found_hr = -1
+                    for i in range(min(40, len(lines))):
+                        if lines[i].strip() == '---':
+                            found_hr = i
+                            break
+                    chunk = '\n'.join(lines[:found_hr])
+                    if found_hr != -1 and "**ORGANIZATION DETAILS**" in chunk:
+                        lines = lines[found_hr + 1:]
+                        while lines and lines[0].strip() == "":
+                            lines.pop(0)
+                    else:
                         break
-                for i in range(len(lines) - 1, max(-1, len(lines) - 15), -1):
-                    if lines[i].strip() == '---':
-                        lines = lines[:i]
+                while True:
+                    found_hr = -1
+                    for i in range(len(lines) - 1, max(-1, len(lines) - 25), -1):
+                        if lines[i].strip() == '---':
+                            found_hr = i
+                            break
+                    if found_hr != -1:
+                        chunk = '\n'.join(lines[found_hr:])
+                        if "Signatory" in chunk or "for " in chunk or "![" in chunk or "Signature" in chunk or len(chunk.split('\n')) <= 15:
+                            lines = lines[:found_hr]
+                            while lines and lines[-1].strip() == "":
+                                lines.pop()
+                        else:
+                            break
+                    else:
                         break
 
                 stripped = '\n'.join(lines).strip()
@@ -160,4 +181,18 @@ async def upload_organization_asset(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Upload failed: {e}")
+    return {"profile": profile}
+
+
+@router.delete("/api/organization/{slot}")
+async def delete_organization_asset(
+    slot: str,
+    user: User = Depends(require_roles("Admin")),
+):
+    if slot not in ("logo", "signature", "seal"):
+        raise HTTPException(400, "Unknown branding asset slot")
+    try:
+        profile = organization.remove_branding_asset(slot)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to remove {slot}: {e}")
     return {"profile": profile}
