@@ -342,7 +342,7 @@ export default function NewStandaloneInvoice() {
                         type="text"
                         value={item.description}
                         onChange={(e) => updateItem(index, { description: e.target.value })}
-                        className="w-full border-slate-200 rounded p-2 text-sm"
+                        className="w-full border border-slate-300 bg-white rounded p-2 text-sm"
                         placeholder="Description to appear on invoice"
                       />
                     </div>
@@ -352,7 +352,7 @@ export default function NewStandaloneInvoice() {
                         type="number"
                         value={item.amount}
                         onChange={(e) => updateItem(index, { amount: e.target.value })}
-                        className="w-full border-slate-200 rounded p-2 text-sm"
+                        className="w-full border border-slate-300 bg-white rounded p-2 text-sm"
                         placeholder="0.00"
                       />
                     </div>
@@ -362,7 +362,7 @@ export default function NewStandaloneInvoice() {
                         type="number"
                         value={item.hours}
                         onChange={(e) => updateItem(index, { hours: e.target.value })}
-                        className="w-full border-slate-200 rounded p-2 text-sm"
+                        className="w-full border border-slate-300 bg-white rounded p-2 text-sm"
                         placeholder="optional"
                       />
                     </div>
@@ -398,7 +398,7 @@ export default function NewStandaloneInvoice() {
                   type="text"
                   value={poNumber}
                   onChange={(e) => setPoNumber(e.target.value)}
-                  className="w-full border-slate-200 rounded p-2 text-sm"
+                  className="w-full border border-slate-300 bg-white rounded p-2 text-sm"
                   placeholder="e.g. PO-2026-045"
                 />
               </div>
@@ -408,7 +408,7 @@ export default function NewStandaloneInvoice() {
                   type="text"
                   value={paymentTerms}
                   onChange={(e) => setPaymentTerms(e.target.value)}
-                  className="w-full border-slate-200 rounded p-2 text-sm"
+                  className="w-full border border-slate-300 bg-white rounded p-2 text-sm"
                   placeholder="e.g. Net 30"
                 />
               </div>
@@ -419,7 +419,7 @@ export default function NewStandaloneInvoice() {
                   min="0"
                   value={discountAmount}
                   onChange={(e) => setDiscountAmount(e.target.value)}
-                  className="w-full border-slate-200 rounded p-2 text-sm"
+                  className="w-full border border-slate-300 bg-white rounded p-2 text-sm"
                   placeholder="0.00"
                 />
               </div>
